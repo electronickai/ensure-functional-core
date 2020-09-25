@@ -21,6 +21,10 @@ public class Core {
         int result = 41;
     }
 
+    public List<String> addNewTalkForwad(List<String> list, String talk) {
+        return addNewTalk(list, talk);
+    }
+
     public List<String> addNewTalk(List<String> list, String talk) {
         List<String> mutableList = new ArrayList<>(list);
         if (talk != null) {
