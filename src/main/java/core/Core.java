@@ -33,9 +33,9 @@ public class Core {
         return Collections.unmodifiableList(mutableList);
     }
 
- //    public List<String> addBoeseNewTalk(List<String> list, String talk) {
- //       talks = list;
- //       return Collections.unmodifiableList(talks);
- //   }
+    public List<String> addBoeseNewTalk(List<String> list, String talk) {
+        talks = list;
+        return Collections.unmodifiableList(talks);
+    }
 
 }
