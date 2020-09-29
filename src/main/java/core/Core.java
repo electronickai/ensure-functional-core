@@ -22,10 +22,10 @@ public class Core {
     }
 
     public List<String> addNewTalkForwad(List<String> list, String talk) {
-        return addNewTalk(list, talk);
+        return addNewElement(list, talk);
     }
 
-    public List<String> addNewTalk(List<String> list, String talk) {
+    public List<String> addNewElement(List<String> list, String talk) {
         List<String> mutableList = new ArrayList<>(list);
         if (talk != null) {
             mutableList.add(talk);
@@ -33,7 +33,7 @@ public class Core {
         return Collections.unmodifiableList(mutableList);
     }
 
-    public List<String> addBoeseNewTalk(List<String> list, String talk) {
+    public List<String> addBoeseNewElement(List<String> list, String talk) {
         talks = list;
         return Collections.unmodifiableList(talks);
     }
