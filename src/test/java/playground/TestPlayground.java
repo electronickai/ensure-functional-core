@@ -2,6 +2,7 @@ package playground;
 
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.domain.JavaCodeUnit;
 import com.tngtech.archunit.core.domain.JavaMethod;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
@@ -17,8 +18,8 @@ import java.util.HashMap;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 
 
-@AnalyzeClasses(packages = {"core..", "java.lang..", "java.util..", "sun.util.locale..", "sun.util.calendar..", "java.math..", "java.text..", "java.time..", "java.util.logging.."}, importOptions = ImportOption.DoNotIncludeTests.class)
-//@AnalyzeClasses(packages = {"core..", "java.."}, importOptions = ImportOption.DoNotIncludeTests.class)
+//@AnalyzeClasses(packages = {"core..", "java.lang..", "java.util..", "sun.util.locale..", "sun.util.calendar..", "java.math..", "java.text..", "java.time..", "java.util.logging.."}, importOptions = ImportOption.DoNotIncludeTests.class)
+@AnalyzeClasses(packages = {"core..", "java.."}, importOptions = ImportOption.DoNotIncludeTests.class)
 public class TestPlayground {
 
     private static final ArchCondition<? super JavaClass> BE_PURE
@@ -36,7 +37,6 @@ public class TestPlayground {
 
 
         System.out.println("Check Results: ");
-        analyse.keySet().stream().filter(a -> a.startsWith("java.lang.String.valueOf")).forEach(System.out::println);
 
         assertNotSEF("core.Core.addBoeseNewElement(java.util.List, java.lang.String)");
         assertSSEF("core.Core.add(int, int)");
@@ -44,28 +44,33 @@ public class TestPlayground {
         assertNotSEF("core.Core.doUnneccessaryStuff()");
         assertSSEF("core.Core.addNewElement(java.util.List, java.lang.String)");
         assertSSEF("core.Core.addNewTalkForwad(java.util.List, java.lang.String)");
-        assertNotSEF("core.Core.getRandomInit()");
+
         assertSSEF("java.lang.ThreadLocal$SuppliedThreadLocal.initialValue()");
         assertSSEF("java.lang.ThreadLocal.initialValue()");
 
         /* Erzeuger */
-        assertSSEF("java.util.EnumMap.clone()"); // TODO soll DSEF werden
-        assertSSEF("java.lang.String.toCharArray()");
+        assertSSEF("java.util.EnumMap.clone()");
+        assertNotSEF("java.lang.String.toCharArray()"); // TODO soll mindestens DSEF werden
         assertSSEF("java.lang.String.valueOf(java.lang.Object)");
         assertSSEF("java.lang.String.valueOf([C)");
 
+        /* Fragwuerdig */
+        assertDSEF("core.Core.getRandomInit()");
+
         /* Lazy initialization */
-        assertNotSEF("core.Core.getLazy()"); // TODO soll DSEF werden
-        assertNotSEF("java.lang.Class.getSimpleName()"); // TODO soll DSEF werden
+        assertDSEF("core.Core.getLazy()");
+        assertSSEF("java.lang.Class.getSimpleName()");
 
         /* Native Operations */
-        assertNotSEF("java.lang.Object.hashCode()");
-        assertNotSEF("java.lang.Thread.isAlive()");
+        assertSSEF("java.lang.Object.hashCode()");
+        assertNotSEF("java.lang.Thread.isAlive()"); // TODO soll mindestens DSEF werden
 
+        /** Strings */
+        //assertSSEF("java.lang.String.chars()");
         System.out.println("As expected");
 
         //System.out.println(classification.getStringOfUnshure());
-        System.out.println(classification.getStringOfNotSEF());
+        System.out.println(classification.getStringOfDSEF());
 
     }
 

@@ -16,7 +16,8 @@ public class Core {
     /**
      * Classify as SSEF
      */
-    String string;
+    String string1;
+    String string2;
 
     /**
      * Classify as SSEF
@@ -69,19 +70,19 @@ public class Core {
      * Lazy initizialization, should be DSEF
      */
     public String getLazy() {
-        if (string == null) {
-            string = "Testtest";
+        if (string1 == null) {
+            string1 = "Testtest";
         }
-        return string;
+        return string1;
     }
 
     /**
      * Random init, should be NotSEF
      */
     public String getRandomInit() {
-        string = "Testtest" + LocalTime.now();
+        string2 = "Testtest" + LocalTime.now();
 
-        return string;
+        return string2;
     }
 
 }

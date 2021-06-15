@@ -1,8 +1,9 @@
 package playground;
 
 import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.core.domain.JavaCodeUnit;
+import com.tngtech.archunit.core.domain.JavaField;
 import com.tngtech.archunit.core.domain.JavaFieldAccess;
-import com.tngtech.archunit.core.domain.JavaMethod;
 import com.tngtech.archunit.core.domain.JavaMethodCall;
 import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.lang.ArchCondition;
@@ -11,16 +12,17 @@ import com.tngtech.archunit.lang.SimpleConditionEvent;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 public class NoSeiteneffectArchCondition extends ArchCondition<JavaClass> {
 
     private final DataStore classification;
-    private final HashMap<String, JavaMethod> ANALYSE_HELPER;
-    private final Set<JavaMethod> INFERFACES = new HashSet<>();
+    private final HashMap<String, JavaCodeUnit> ANALYSE_HELPER;
+    private final Set<JavaCodeUnit> INFERFACES = new HashSet<>();
 
-    public NoSeiteneffectArchCondition(HashMap<String, JavaMethod> analyseHelper, DataStore datastore, Object... args) {
+    public NoSeiteneffectArchCondition(HashMap<String, JavaCodeUnit> analyseHelper, DataStore datastore, Object... args) {
         super("side effect free", args);
         ANALYSE_HELPER = analyseHelper;
         classification = datastore;
@@ -34,7 +36,7 @@ public class NoSeiteneffectArchCondition extends ArchCondition<JavaClass> {
      * @param javaMethod      The AST element to analysze
      * @param conditionEvents input ans output with the found issues.
      */
-    private void collectAndPreClassify(JavaMethod javaMethod, ConditionEvents conditionEvents) {
+    private void collectAndPreClassify(JavaCodeUnit javaMethod, ConditionEvents conditionEvents) {
 
         ANALYSE_HELPER.put(javaMethod.getFullName(), javaMethod); // Used to perform sone assertions
 
@@ -45,7 +47,7 @@ public class NoSeiteneffectArchCondition extends ArchCondition<JavaClass> {
 
         /* A operation which has no return parameters can not be SEF, because it is either changeing its parametes (call by reference)
          * or it can not do anything. so it is save to classify as not SEF */
-        if (javaMethod.getRawReturnType().getFullName().equals("void")) {
+        if (!javaMethod.isConstructor() && javaMethod.getRawReturnType().getFullName().equals("void")) {
             classification.classifyNotSEF(javaMethod);
             return;
         }
@@ -66,10 +68,19 @@ public class NoSeiteneffectArchCondition extends ArchCondition<JavaClass> {
         }
 
         // Wenn die Operation kein Constructor ist, darf sie nicht auf Properties schreiben
+        boolean strict = true;
         if (!javaMethod.isConstructor()) {
+
             JavaClass javaClass = javaMethod.getOwner();
-            if (javaMethod.getFieldAccesses().stream()
-                    .anyMatch(fa -> fa.getAccessType().equals(JavaFieldAccess.AccessType.SET))) {
+            Set<JavaField> setfields = javaMethod.getFieldAccesses().stream()
+                    .filter(fa -> fa.getAccessType().equals(JavaFieldAccess.AccessType.SET))
+                    .map(m -> m.getTarget().resolveField().orNull()).filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            if (setfields.isEmpty()) {
+                strict = true;
+            } else if (setfields.stream().allMatch(a -> a.getAccessesToSelf().stream().allMatch(b -> b.getOrigin().equals(javaMethod)))) {
+                strict = false;
+            } else {
                 logViolation(conditionEvents, javaClass,
                         javaMethod.getFullName() + " is writing to at least one property");
                 classification.classifyNotSEF(javaMethod);
@@ -80,13 +91,17 @@ public class NoSeiteneffectArchCondition extends ArchCondition<JavaClass> {
         // Nun sind wir schonmal sicher, dass die Methoden nicht direkt auf ihre Properties schreiben.
 
         if (javaMethod.getMethodCallsFromSelf().isEmpty()) {
-            classification.classifySSEF(javaMethod);
+            if (strict) {
+                classification.classifySSEF(javaMethod);
+            } else {
+                classification.classifyDSEF(javaMethod);
+            }
             return; // Wenn keine anderen Methoden aufgerufen werden, ist die Methode nun SEF
         }
 
         // jetzt wissen wir, dass andere Methoden aufgerufen werden und die Classifizierung nur noch von den Methodenaufrufen abhängt.
 
-        if (pruefemethodenaufrufe(javaMethod, conditionEvents)) {
+        if (pruefemethodenaufrufe(javaMethod, conditionEvents, strict)) {
             return;
         }
 
@@ -97,9 +112,8 @@ public class NoSeiteneffectArchCondition extends ArchCondition<JavaClass> {
     }
 
 
-    private boolean pruefemethodenaufrufe(JavaMethod javaMethod, ConditionEvents conditionEvents) {
+    private boolean pruefemethodenaufrufe(JavaCodeUnit javaMethod, ConditionEvents conditionEvents, boolean isStrict) {
         Set<JavaMethodCall> callsToCheck = javaMethod.getMethodCallsFromSelf();
-        boolean isStrict = true;
 
         if (callsToCheck.isEmpty()) {
             classification.classifySSEF(javaMethod);
@@ -146,8 +160,8 @@ public class NoSeiteneffectArchCondition extends ArchCondition<JavaClass> {
         boolean rerun = true;
         while (rerun) {
             rerun = false;
-            for (JavaMethod meth : classification.getUnshureMethodsClone()) {
-                rerun |= pruefemethodenaufrufe(meth, conditionEvents);
+            for (JavaCodeUnit meth : classification.getUnshureMethodsClone()) {
+                rerun |= pruefemethodenaufrufe(meth, conditionEvents, true);
             }
 
             rerun |= checkInterfacxes();
@@ -161,7 +175,7 @@ public class NoSeiteneffectArchCondition extends ArchCondition<JavaClass> {
 
     }
 
-    private void logUnsure(ConditionEvents conditionEvents, JavaClass owner, JavaMethod meth) {
+    private void logUnsure(ConditionEvents conditionEvents, JavaClass owner, JavaCodeUnit meth) {
         if (owner.getFullName().startsWith("core.")) {
             Set<JavaMethodCall> unsure = meth.getMethodCallsFromSelf().stream().filter(c -> !classification.isKnownNotSEF(c.getTarget().resolve()) && !classification.isKnownDSEF(c.getTarget().resolve())).collect(Collectors.toSet());
             conditionEvents.add(SimpleConditionEvent.violated(owner, "unsure about " + meth.getFullName() + " because of " + unsure));
@@ -169,8 +183,8 @@ public class NoSeiteneffectArchCondition extends ArchCondition<JavaClass> {
     }
 
     private boolean checkInterfacxes() {
-        Set<JavaMethod> toRemove = new HashSet<>();
-        for (JavaMethod anInterface : INFERFACES) {
+        Set<JavaCodeUnit> toRemove = new HashSet<>();
+        for (JavaCodeUnit anInterface : INFERFACES) {
             if (anInterface.getOwner().getAllSubClasses().stream().allMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).allMatch(classification::isKnownSSEF))) {
                 classification.classifySSEF(anInterface);
                 toRemove.add(anInterface);
@@ -189,7 +203,9 @@ public class NoSeiteneffectArchCondition extends ArchCondition<JavaClass> {
 
     @Override
     public void check(JavaClass javaClass, ConditionEvents conditionEvents) {
+        javaClass.getConstructors().forEach(javaConstructor -> collectAndPreClassify(javaConstructor, conditionEvents));
         javaClass.getMethods().forEach(javaMethod -> collectAndPreClassify(javaMethod, conditionEvents));
+
 
     }
 
