@@ -3,13 +3,11 @@ package playground;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.domain.JavaCodeUnit;
-import com.tngtech.archunit.core.domain.JavaMethod;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
-import org.junit.After;
 import org.junit.AssumptionViolatedException;
 
 import java.util.Formatter;
@@ -20,6 +18,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 
 //@AnalyzeClasses(packages = {"core..", "java.lang..", "java.util..", "sun.util.locale..", "sun.util.calendar..", "java.math..", "java.text..", "java.time..", "java.util.logging.."}, importOptions = ImportOption.DoNotIncludeTests.class)
 @AnalyzeClasses(packages = {"core..", "java.."}, importOptions = ImportOption.DoNotIncludeTests.class)
+//@AnalyzeClasses(packages = {"core.."}, importOptions = ImportOption.DoNotIncludeTests.class)
 public class TestPlayground {
 
     private static final ArchCondition<? super JavaClass> BE_PURE
@@ -50,7 +49,7 @@ public class TestPlayground {
 
         /* Erzeuger */
         assertSSEF("java.util.EnumMap.clone()");
-        assertNotSEF("java.lang.String.toCharArray()"); // TODO soll mindestens DSEF werden
+        assertSSEF("java.lang.String.toCharArray()");
         assertSSEF("java.lang.String.valueOf(java.lang.Object)");
         assertSSEF("java.lang.String.valueOf([C)");
 
@@ -59,25 +58,19 @@ public class TestPlayground {
 
         /* Lazy initialization */
         assertDSEF("core.Core.getLazy()");
-        assertSSEF("java.lang.Class.getSimpleName()");
+        assertNotSEF("java.lang.Class.getSimpleName()"); // TODO soll mindestens DSEF werden
 
         /* Native Operations */
         assertSSEF("java.lang.Object.hashCode()");
         assertNotSEF("java.lang.Thread.isAlive()"); // TODO soll mindestens DSEF werden
 
         /** Strings */
-        //assertSSEF("java.lang.String.chars()");
+        assertNotSEF("java.lang.String.chars()"); // TODO soll mindestens DSEF werden
         System.out.println("As expected");
 
-        //System.out.println(classification.getStringOfUnshure());
-        System.out.println(classification.getStringOfDSEF());
+        System.out.println(classification.getOfClassification(SEFDataStore.ClassificationEnum.DSEF));
 
     }
 
 }
 
-/*
-
-        assertTrue (getClassificationFor("core.Core.doNothing()").equals("NOT FOUND"), "Regression of core.Core.doNothing()");
-        assertTrue (getClassificationFor("core.Core.doUnneccessaryStuff()").equals("NOT FOUND"), "Regression of core.Core.doUnneccessaryStuff()");
- */
