@@ -45,6 +45,22 @@ public class DeterminiticArchCondition extends ArchCondition<JavaClass> {
             return;
         }
 
+        if (javaMethod.getMethodCallsFromSelf().isEmpty() && javaMethod.getFieldAccesses().isEmpty()) {
+            classification.classifySDET(javaMethod);
+            return;
+        }
+
+        if (javaMethod.getRawReturnType().getFullName().equals("void")) {
+            classification.classifySDET(javaMethod);
+            return;
+        }
+
+        /* Native Operations can not be analyzed, so handle as NotSEF */
+        if (javaMethod.getModifiers().contains(JavaModifier.NATIVE)) {
+            classification.classifyNotDET(javaMethod);
+            return;
+        }
+
         //TODO
 
         classification.classifyUnsure(javaMethod);

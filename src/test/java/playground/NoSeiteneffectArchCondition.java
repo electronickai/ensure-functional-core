@@ -18,11 +18,11 @@ import java.util.stream.Collectors;
 
 public class NoSeiteneffectArchCondition extends ArchCondition<JavaClass> {
 
-    private final SEFDataStore classification;
+    private final SefDataStore classification;
     private final HashMap<String, JavaCodeUnit> ANALYSE_HELPER;
     private final Set<JavaCodeUnit> INFERFACES = new HashSet<>();
 
-    public NoSeiteneffectArchCondition(HashMap<String, JavaCodeUnit> analyseHelper, SEFDataStore datastore, Object... args) {
+    public NoSeiteneffectArchCondition(HashMap<String, JavaCodeUnit> analyseHelper, SefDataStore datastore, Object... args) {
         super("side effect free", args);
         ANALYSE_HELPER = analyseHelper;
         classification = datastore;
@@ -159,14 +159,14 @@ public class NoSeiteneffectArchCondition extends ArchCondition<JavaClass> {
         System.out.println(classification.info() + " Anzahl offene Interfaces: " + INFERFACES.size());
         boolean rerun = true;
         while (rerun) {
-            Set<JavaCodeUnit> unchecked = classification.getClMethods(SEFDataStore.ClassificationEnum.UNCHECKED);
+            Set<JavaCodeUnit> unchecked = classification.getClMethods(SefDataStore.ClassificationEnum.UNCHECKED);
             rerun = !unchecked.isEmpty();
             for (JavaCodeUnit meth : unchecked) {
                 collectAndPreClassify(meth, conditionEvents);
             }
 
 
-            for (JavaCodeUnit meth : classification.getClMethods(SEFDataStore.ClassificationEnum.UNSURE)) {
+            for (JavaCodeUnit meth : classification.getClMethods(SefDataStore.ClassificationEnum.UNSURE)) {
                 rerun |= pruefemethodenaufrufe(meth, conditionEvents, true);
             }
 
@@ -175,7 +175,7 @@ public class NoSeiteneffectArchCondition extends ArchCondition<JavaClass> {
 
         }
 
-        classification.getClMethods(SEFDataStore.ClassificationEnum.UNSURE).forEach(un -> logUnsure(conditionEvents, un.getOwner(), un));
+        classification.getClMethods(SefDataStore.ClassificationEnum.UNSURE).forEach(un -> logUnsure(conditionEvents, un.getOwner(), un));
 
     }
 

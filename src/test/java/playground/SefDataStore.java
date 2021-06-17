@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class SEFDataStore {
+public class SefDataStore {
 
 
     private final HashMap<JavaCodeUnit, ClassificationEnum> classification = new HashMap<>();

@@ -85,4 +85,12 @@ public class Core {
         return string2;
     }
 
+    public void isDeterministicBecauseVoid() {
+        double random = Math.random();
+    }
+
+    public int addNumbers(int a, int b) {
+        return a + b;
+    }
+
 }
