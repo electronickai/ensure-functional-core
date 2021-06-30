@@ -14,7 +14,7 @@ public class DetDataStore {
 
     private final HashMap<JavaCodeUnit, ClassificationEnum> classification = new HashMap<>();
 
-    private final Set<String> NOT_DET_API = Set.of("java.io.", "java.nio.", "java.reflect.", "jdk.internal.", "sun.management.", "sun.reflect.", "java.net.", "java.security.", "javax.xml", "sun.invoke.", "javax.management.", "org.w3c.", "java.util.concurrent.", "java.util.logging.", "java.lang.invoke.", "java.util.stream");
+    private final Set<String> NOT_DET_API = Set.of("java.io.", "java.nio.", "java.reflect.", "jdk.internal.", "sun.management.", "sun.reflect.", "java.net.", "java.security.", "javax.xml", "sun.invoke.", "javax.management.", "org.w3c.", "java.util.concurrent.", "java.util.logging.", "java.lang.invoke.", "java.util.stream", "java.lang.Runnable");
     private final Set<String> DEF_DDET_API = Set.of();
     private final Set<String> DEF_SDET_API = Set.of();
 

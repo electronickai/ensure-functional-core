@@ -61,16 +61,14 @@ public class DeterminiticArchCondition extends ArchCondition<JavaClass> {
             return;
         }
 
-        //TODO
-
         classification.classifyUnsure(javaMethod);
 
     }
 
 
     private boolean pruefemethodenaufrufe(JavaCodeUnit javaMethod, ConditionEvents conditionEvents, boolean isStrict) {
-        Set<JavaMethodCall> callsToCheck = javaMethod.getMethodCallsFromSelf();
 
+        Set<JavaMethodCall> callsToCheck = javaMethod.getMethodCallsFromSelf();
         if (callsToCheck.isEmpty()) {
             classification.classifySDET(javaMethod);
             return true;
@@ -78,10 +76,16 @@ public class DeterminiticArchCondition extends ArchCondition<JavaClass> {
 
         for (JavaMethodCall call : callsToCheck) {
 
+            if(classification.isUnsure(call.getTarget().resolve())) {
+                return false;
+            }
 
-            //TODO
+            if(classification.isKnownNotDET(call.getTarget().resolve())) {
+                classification.classifyNotDET(javaMethod);
+                return true;
+            }
 
-        }
+        };
 
         if (isStrict) {
             classification.classifySDET(javaMethod);

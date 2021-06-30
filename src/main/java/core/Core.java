@@ -89,6 +89,10 @@ public class Core {
         double random = Math.random();
     }
 
+    public double returnRandom() {
+        return Math.random();
+    }
+
     public int addNumbers(int a, int b) {
         return a + b;
     }

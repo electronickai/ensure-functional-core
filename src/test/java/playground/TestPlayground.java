@@ -17,7 +17,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 
 
 //@AnalyzeClasses(packages = {"core..", "java.lang..", "java.util..", "sun.util.locale..", "sun.util.calendar..", "java.math..", "java.text..", "java.time..", "java.util.logging.."}, importOptions = ImportOption.DoNotIncludeTests.class)
-@AnalyzeClasses(packages = {"core..", "java.."}, importOptions = ImportOption.DoNotIncludeTests.class)
+@AnalyzeClasses(packages = {"core..", "java..", "jdk.internal.."}, importOptions = ImportOption.DoNotIncludeTests.class)
 //@AnalyzeClasses(packages = {"core.."}, importOptions = ImportOption.DoNotIncludeTests.class)
 public class TestPlayground {
 
@@ -50,10 +50,13 @@ public class TestPlayground {
         System.out.println("Check Results for deterministic conditions: ");
 
         assertSDet("core.Core.isDeterministicBecauseVoid()");
+        assertNotDet("core.Core.returnRandom()");
         assertSDet("core.Core.addNumbers(int, int)");
         assertSDet("java.sql.Time.getMonth()");
+        assertNotDet("java.time.LocalDate.now()");
 
-        System.out.println(detClassification.getOfClassification(DetDataStore.ClassificationEnum.SDET));
+
+        //System.out.println(detClassification.getOfClassification(DetDataStore.ClassificationEnum.SDET));
     }
 
     @ArchTest
@@ -92,7 +95,7 @@ public class TestPlayground {
         assertNotSEF("java.lang.String.chars()"); // TODO soll mindestens DSEF werden
         System.out.println("As expected");
 
-        System.out.println(sefClassification.getOfClassification(SefDataStore.ClassificationEnum.DSEF));
+        //System.out.println(sefClassification.getOfClassification(SefDataStore.ClassificationEnum.DSEF));
 
     }
 
@@ -107,6 +110,15 @@ public class TestPlayground {
         if (analyse.containsKey(meth)) {
             assertTrue(sefClassification.isKnownNotSEF(analyse.get(meth)),
                     "Regression of result for %s should be \"NotSEF\" but was \"%s\"", meth, getClassificationForSef(meth));
+        } else {
+            throw new AssumptionViolatedException("Methode " + meth + " not found!");
+        }
+    }
+
+    static void assertNotDet(String meth) {
+        if (analyse.containsKey(meth)) {
+            assertTrue(detClassification.isKnownNotDET(analyse.get(meth)),
+                    "Regression of result for %s should be \"NotDet\" but was \"%s\"", meth, getClassificationForDet(meth));
         } else {
             throw new AssumptionViolatedException("Methode " + meth + " not found!");
         }
