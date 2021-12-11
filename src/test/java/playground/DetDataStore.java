@@ -14,7 +14,9 @@ public class DetDataStore {
 
     private final HashMap<JavaCodeUnit, ClassificationEnum> classification = new HashMap<>();
 
-    private final Set<String> NOT_DET_API = Set.of("java.io.", "java.nio.", "java.reflect.", "jdk.internal.", "sun.management.", "sun.reflect.", "java.net.", "java.security.", "javax.xml", "sun.invoke.", "javax.management.", "org.w3c.", "java.util.concurrent.", "java.util.logging.", "java.lang.invoke.", "java.util.stream", "java.lang.Runnable");
+    private final Set<String> NOT_DET_API = Set.of(
+            "java.io.", "java.nio.", "java.reflect.", "jdk.internal.", "sun.management.", "sun.reflect.", "java.net.", "java.security.", "javax.xml", "sun.invoke.",
+            "javax.management.", "org.w3c.", "java.util.concurrent.", "java.util.logging.", "java.lang.invoke.", "java.util.stream", "java.lang.Runnable");
     private final Set<String> DEF_DDET_API = Set.of();
     private final Set<String> DEF_SDET_API = Set.of();
 
@@ -134,8 +136,8 @@ public class DetDataStore {
             }
         }
 
-        Formatter fo =  new Formatter();
-        return  fo.format("Gesamt %d6 Anzahl SDET:  %d6  Anzahl DDET: %d6  Anzahl unsure: %d6  Anzahl NotDET:  %d6  Anzahl UNKOWN: %d6" , classification.size(), sdef, ddef, us,  ndef, uc).toString();
+        Formatter fo = new Formatter();
+        return fo.format("Gesamt %d6 Anzahl SDET:  %d6  Anzahl DDET: %d6  Anzahl unsure: %d6  Anzahl NotDET:  %d6  Anzahl UNKOWN: %d6", classification.size(), sdef, ddef, us, ndef, uc).toString();
     }
 
     public Set<JavaCodeUnit> getClMethods(ClassificationEnum cl) {
@@ -166,7 +168,7 @@ public class DetDataStore {
 
         private String displayString;
 
-        private ClassificationEnum(String ds) {
+        ClassificationEnum(String ds) {
             displayString = ds;
         }
 
