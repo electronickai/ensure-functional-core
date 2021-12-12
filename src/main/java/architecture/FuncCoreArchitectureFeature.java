@@ -16,32 +16,81 @@ import java.util.Set;
 import static com.tngtech.archunit.PublicAPI.Usage.ACCESS;
 import static java.lang.System.lineSeparator;
 
-public class FuncCoreArchitectureFeature {
+public final class FuncCoreArchitectureFeature {
     private FuncCoreArchitectureFeature() {
     }
 
+    /**
+     * Can be used to assert a typical functional core architecture, where the core is built based on functional programming paradigms (having only pure methods) and a shell to administer side effects.
+     * <br><br>
+     * A functional core architecture can for example be defined like this:
+     * <pre><code>functionalCoreArchitecture()
+     * .shellDefinedBy("my.application.module.shell..")
+     * .coreDefinedBy("my.application.module.core..")
+     * .wherePredefinedCatalogIsExcluded()
+     * .wherePackage("java.util.concurrent..").isConsideredNonDeterministic()
+     * .wherePackage("java.lang.invoke..").isConsideredNonDeterministic()
+     * .wherePackage("java.util.stream..").isConsideredPure()
+     * </code></pre>
+     * NOTE: The packages like java.util.concurrent and java.lan.invoke (and others) would already be declared as non deterministic in a predefined catalog. This catalog could be used by either omitting wherePredefinedCatalogIsExcluded() or by explicitly declaring wherePredefinedCatalogIsUsed()
+     *
+     * @return An {@link ArchRule} enforcing the specified functional core architecture
+     **/
     @PublicAPI(usage = ACCESS)
     public static FunctionalCoreArchitecture functionalCoreArchitecture() {
         return new FunctionalCoreArchitecture();
     }
 
     public static final class FunctionalCoreArchitecture implements ArchRule {
-        private final String corePackageIdentifier;
-        private final String shellPackageIdentifier;
-        private final boolean usePredefinedCatalog;
-        private final Set<String> additionalNotDeterministicPackages;
-        private final Optional<String> overriddenDescription;
+        private String[] shellPackageIdentifiers = new String[0];
+        private String[] corePackageIdentifiers = new String[0];
+        ;
+        private boolean usePredefinedCatalog = true;
+        private Set<String> nonDeterministicPackages = new LinkedHashSet<>();
+        private Set<String> purePackages = new LinkedHashSet<>();
+        //        private Set<String> nonSideEffectFreePackages = new LinkedHashSet<>(); //TODO: Shall we define that as configurable?
+        private final Optional<String> overriddenDescription = Optional.empty();
 
         private FunctionalCoreArchitecture() {
-            this("", "", true, new LinkedHashSet<>(), Optional.empty());
         }
 
-        public FunctionalCoreArchitecture(String corePackageIdentifier, String shellPackageIdentifier, boolean usePredefinedCatalog, Set<String> additionalNotDeterministicPackages, Optional<String> overriddenDescription) {
-            this.corePackageIdentifier = corePackageIdentifier;
-            this.shellPackageIdentifier = shellPackageIdentifier;
-            this.usePredefinedCatalog = usePredefinedCatalog;
-            this.additionalNotDeterministicPackages = additionalNotDeterministicPackages;
-            this.overriddenDescription = overriddenDescription;
+        @PublicAPI(usage = ACCESS)
+        public FunctionalCoreArchitecture shellDefinedBy(String... packageIdentifiers) {
+            shellPackageIdentifiers = packageIdentifiers;
+            return this;
+        }
+
+        @PublicAPI(usage = ACCESS)
+        public FunctionalCoreArchitecture coreDefinedBy(String... packageIdentifiers) {
+            corePackageIdentifiers = packageIdentifiers;
+            return this;
+        }
+
+        @PublicAPI(usage = ACCESS)
+        public FunctionalCoreArchitecture wherePredefinedCatalogIsExcluded() {
+            usePredefinedCatalog = false;
+            return this;
+        }
+
+        @PublicAPI(usage = ACCESS)
+        public FunctionalCoreArchitecture wherePredefinedCatalogIsUsed() {
+            usePredefinedCatalog = true;
+            return this;
+        }
+
+        @PublicAPI(usage = ACCESS)
+        public PackageClassification wherePackage(String packageIdentifier) {
+            return new PackageClassification(packageIdentifier);
+        }
+
+        private FunctionalCoreArchitecture addNonDeterministicPackage(String packageIdentifier) {
+            nonDeterministicPackages.add(packageIdentifier);
+            return this;
+        }
+
+        private FunctionalCoreArchitecture addPurePackage(String packageIdentifier) {
+            purePackages.add(packageIdentifier);
+            return this;
         }
 
         @Override
@@ -51,11 +100,11 @@ public class FuncCoreArchitectureFeature {
             }
 
             List<String> lines = new ArrayList<>();
-            lines.add("Functional Core Architecture with core in " + corePackageIdentifier + " and shell in " + shellPackageIdentifier);
+            lines.add("Functional Core Architecture with core in " + corePackageIdentifiers + " and shell in " + shellPackageIdentifiers);
             lines.add(usePredefinedCatalog ? " using predifined non deterministic packages" : "using only customized non deterministic packages");
-            if (!additionalNotDeterministicPackages.isEmpty()) {
+            if (!nonDeterministicPackages.isEmpty()) {
                 lines.add("with the following additionally defined non deterministic packages");
-                lines.addAll(additionalNotDeterministicPackages);
+                lines.addAll(nonDeterministicPackages);
             }
             return Joiner.on(lineSeparator()).join(lines);
         }
@@ -83,6 +132,24 @@ public class FuncCoreArchitectureFeature {
         @Override
         public ArchRule as(String newDescription) {
             return null;
+        }
+
+        public final class PackageClassification {
+            private final String packageIdentifier; //TODO: Use package syntax / PackageMatcher
+
+            private PackageClassification(String packageIdentifier) {
+                this.packageIdentifier = packageIdentifier;
+            }
+
+            @PublicAPI(usage = ACCESS)
+            public FunctionalCoreArchitecture isConsideredNonDeterministic() {
+                return FunctionalCoreArchitecture.this.addNonDeterministicPackage(packageIdentifier);
+            }
+
+            @PublicAPI(usage = ACCESS)
+            public FunctionalCoreArchitecture isConsideredPure() {
+                return FunctionalCoreArchitecture.this.addPurePackage(packageIdentifier);
+            }
         }
     }
 }
