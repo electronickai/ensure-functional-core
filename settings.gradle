@@ -1,2 +1,4 @@
 rootProject.name = 'EnsureFunctionalCore'
+include 'archunit-extention'
+include 'java-test'
 

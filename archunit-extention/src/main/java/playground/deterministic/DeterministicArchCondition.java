@@ -127,13 +127,13 @@ public class DeterministicArchCondition extends ArchCondition<JavaClass> {
     private boolean checkInterfaces() {
         Set<JavaCodeUnit> toRemove = new HashSet<>();
         for (JavaCodeUnit anInterface : INFERFACES) {
-            if (anInterface.getOwner().getAllSubClasses().stream().allMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).allMatch(dataStore::isKnownSDET))) {
+            if (anInterface.getOwner().getAllSubclasses().stream().allMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).allMatch(dataStore::isKnownSDET))) {
                 dataStore.classifySDET(anInterface);
                 toRemove.add(anInterface);
-            } else if (anInterface.getOwner().getAllSubClasses().stream().allMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).allMatch(dataStore::isKnownAtLeastDDET))) {
+            } else if (anInterface.getOwner().getAllSubclasses().stream().allMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).allMatch(dataStore::isKnownAtLeastDDET))) {
                 dataStore.classifyDDET(anInterface);
                 toRemove.add(anInterface);
-            } else if (anInterface.getOwner().getAllSubClasses().stream().anyMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).anyMatch(dataStore::isKnownNotDET))) {
+            } else if (anInterface.getOwner().getAllSubclasses().stream().anyMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).anyMatch(dataStore::isKnownNotDET))) {
                 dataStore.isKnownNotDET(anInterface);
                 toRemove.add(anInterface);
 

@@ -1,0 +1,19 @@
+plugins {
+    id 'java-library'
+}
+
+targetCompatibility = JavaVersion.VERSION_11
+sourceCompatibility = JavaVersion.VERSION_11
+
+group 'playground'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compileOnly 'junit:junit:4.13.2'
+    implementation 'com.tngtech.archunit:archunit-junit5:0.22.0'
+    compileOnly 'org.assertj:assertj-core:3.21.0'
+}
