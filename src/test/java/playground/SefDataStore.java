@@ -2,17 +2,14 @@ package playground;
 
 import com.tngtech.archunit.core.domain.JavaCodeUnit;
 
-import java.text.Format;
 import java.util.Collection;
 import java.util.Formatter;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 public class SefDataStore {
-
 
     private final HashMap<JavaCodeUnit, ClassificationEnum> classification = new HashMap<>();
 
@@ -20,18 +17,15 @@ public class SefDataStore {
     private final Set<String> DEF_DSEF_API = Set.of("java.util.logging.", "java.util.function.BiConsumer");
     private final Set<String> DEF_SSEF_API = Set.of("java.lang.Object.clone()", "java.lang.Object.hashCode()", "java.lang.Object.toString()", "java.lang.Object.getClass()", "java.lang.Class.getSimpleName()", "java.lang.Class.privateGetPublicMethods()", "java.lang.Class.getGenericInfo()");
 
-
-    boolean isKnownSSEF(JavaCodeUnit methode) {
-
-        ClassificationEnum cl = classification.putIfAbsent(methode, ClassificationEnum.UNCHECKED);
+    boolean isKnownSSEF(JavaCodeUnit codeUnit) {
+        ClassificationEnum cl = classification.putIfAbsent(codeUnit, ClassificationEnum.UNCHECKED);
         if (ClassificationEnum.UNCHECKED.equals(cl)) {
-            if (DEF_SSEF_API.stream().anyMatch(a -> methode.getFullName().startsWith(a))) {
-                classification.put(methode, ClassificationEnum.SSEF);
+            if (DEF_SSEF_API.stream().anyMatch(a -> codeUnit.getFullName().startsWith(a))) {
+                classification.put(codeUnit, ClassificationEnum.SSEF);
                 return true;
             }
         }
         return ClassificationEnum.SSEF.equals(cl);
-
     }
 
     boolean isKnownSSEF(Collection<JavaCodeUnit> methods) {
@@ -39,19 +33,19 @@ public class SefDataStore {
     }
 
 
-    boolean isKnownDSEF(JavaCodeUnit methode) {
-        ClassificationEnum cl = classification.putIfAbsent(methode, ClassificationEnum.UNCHECKED);
+    boolean isKnownDSEF(JavaCodeUnit codeUnit) {
+        ClassificationEnum cl = classification.putIfAbsent(codeUnit, ClassificationEnum.UNCHECKED);
         if (ClassificationEnum.UNCHECKED.equals(cl)) {
-            if (DEF_DSEF_API.stream().anyMatch(a -> methode.getFullName().startsWith(a))) {
-                classification.put(methode, ClassificationEnum.DSEF);
+            if (DEF_DSEF_API.stream().anyMatch(a -> codeUnit.getFullName().startsWith(a))) {
+                classification.put(codeUnit, ClassificationEnum.DSEF);
                 return true;
             }
         }
         return ClassificationEnum.DSEF.equals(cl);
     }
 
-    boolean isKnownAtLeastDSEF(JavaCodeUnit methode) {
-        return isKnownDSEF(methode) || isKnownSSEF(methode);
+    boolean isKnownAtLeastDSEF(JavaCodeUnit codeUnit) {
+        return isKnownDSEF(codeUnit) || isKnownSSEF(codeUnit);
     }
 
     boolean isKnownAtLeastDSEF(Collection<JavaCodeUnit> methods) {
@@ -63,11 +57,11 @@ public class SefDataStore {
     }
 
 
-    boolean isKnownNotSEF(JavaCodeUnit methode) {
-        ClassificationEnum cl = classification.putIfAbsent(methode, ClassificationEnum.UNCHECKED);
+    boolean isKnownNotSEF(JavaCodeUnit codeUnit) {
+        ClassificationEnum cl = classification.putIfAbsent(codeUnit, ClassificationEnum.UNCHECKED);
         if (ClassificationEnum.UNCHECKED.equals(cl)) {
-            if (NOT_SEF_API.stream().anyMatch(a -> methode.getFullName().startsWith(a))) {
-                classification.put(methode, ClassificationEnum.NOT_SEF);
+            if (NOT_SEF_API.stream().anyMatch(a -> codeUnit.getFullName().startsWith(a))) {
+                classification.put(codeUnit, ClassificationEnum.NOT_SEF);
                 return true;
             }
         }
@@ -155,26 +149,25 @@ public class SefDataStore {
     }
 
     String getClassificationFor(JavaCodeUnit javaCodeUnit) {
-
         return classification.getOrDefault(javaCodeUnit, ClassificationEnum.UNCHECKED).toString();
     }
 
     enum ClassificationEnum {
-        UNCHECKED("unchecked"),
-        UNSURE("unsure"),
+        UNCHECKED("unchecked (SEF)"),
+        UNSURE("unsure (SEF)"),
         NOT_SEF("not SEF"),
-        SSEF("SSEF"),
-        DSEF("DSEF");
+        SSEF("strictly SEF"),
+        DSEF("domain SEF");
 
-        private String displayString;
+        private final String displayName;
 
-        private ClassificationEnum(String ds) {
-            displayString = ds;
+        ClassificationEnum(String ds) {
+            displayName = ds;
         }
 
         @Override
         public String toString() {
-            return displayString;
+            return displayName;
         }
     }
 

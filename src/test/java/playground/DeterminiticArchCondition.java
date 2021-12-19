@@ -2,8 +2,6 @@ package playground;
 
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaCodeUnit;
-import com.tngtech.archunit.core.domain.JavaField;
-import com.tngtech.archunit.core.domain.JavaFieldAccess;
 import com.tngtech.archunit.core.domain.JavaMethodCall;
 import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.lang.ArchCondition;
@@ -12,7 +10,6 @@ import com.tngtech.archunit.lang.SimpleConditionEvent;
 
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -65,33 +62,30 @@ public class DeterminiticArchCondition extends ArchCondition<JavaClass> {
 
     }
 
+    private boolean validateMethodCalls(JavaCodeUnit codeUnit, ConditionEvents conditionEvents, boolean isStrict) {
+        Set<JavaMethodCall> callsToCheck = codeUnit.getMethodCallsFromSelf();
 
-    private boolean pruefemethodenaufrufe(JavaCodeUnit javaMethod, ConditionEvents conditionEvents, boolean isStrict) {
-
-        Set<JavaMethodCall> callsToCheck = javaMethod.getMethodCallsFromSelf();
         if (callsToCheck.isEmpty()) {
-            classification.classifySDET(javaMethod);
+            classification.classifySDET(codeUnit);
             return true;
         }
 
         for (JavaMethodCall call : callsToCheck) {
-
-            if(classification.isUnsure(call.getTarget().resolve())) {
+            if (classification.isUnsure(call.getTarget().resolve())) {
                 return false;
             }
-
-            if(classification.isKnownNotDET(call.getTarget().resolve())) {
-                classification.classifyNotDET(javaMethod);
+            if (classification.isKnownNotDET(call.getTarget().resolve())) {
+                classification.classifyNotDET(codeUnit);
                 return true;
             }
-
-        };
+        }
 
         if (isStrict) {
-            classification.classifySDET(javaMethod);
+            classification.classifySDET(codeUnit);
         } else {
-            classification.classifyDDET(javaMethod);
+            classification.classifyDDET(codeUnit);
         }
+
         return true;
     }
 
@@ -113,18 +107,14 @@ public class DeterminiticArchCondition extends ArchCondition<JavaClass> {
                 collectAndPreClassify(meth, conditionEvents);
             }
 
-
             for (JavaCodeUnit meth : classification.getClMethods(DetDataStore.ClassificationEnum.UNSURE)) {
-                rerun |= pruefemethodenaufrufe(meth, conditionEvents, true);
+                rerun |= validateMethodCalls(meth, conditionEvents, true);
             }
 
-            rerun |= checkInterfacxes();
+            rerun |= checkInterfaces();
             System.out.println(classification.info() + " Anzahl offene Interfaces: " + INFERFACES.size());
-
         }
-
         classification.getClMethods(DetDataStore.ClassificationEnum.UNSURE).forEach(un -> logUnsure(conditionEvents, un.getOwner(), un));
-
     }
 
     private void logUnsure(ConditionEvents conditionEvents, JavaClass owner, JavaCodeUnit meth) {
@@ -134,7 +124,7 @@ public class DeterminiticArchCondition extends ArchCondition<JavaClass> {
         }
     }
 
-    private boolean checkInterfacxes() {
+    private boolean checkInterfaces() {
         Set<JavaCodeUnit> toRemove = new HashSet<>();
         for (JavaCodeUnit anInterface : INFERFACES) {
             if (anInterface.getOwner().getAllSubClasses().stream().allMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).allMatch(classification::isKnownSDET))) {
@@ -152,14 +142,10 @@ public class DeterminiticArchCondition extends ArchCondition<JavaClass> {
         return INFERFACES.removeAll(toRemove);
     }
 
-
     @Override
     public void check(JavaClass javaClass, ConditionEvents conditionEvents) {
         javaClass.getConstructors().forEach(javaConstructor -> collectAndPreClassify(javaConstructor, conditionEvents));
         javaClass.getMethods().forEach(javaMethod -> collectAndPreClassify(javaMethod, conditionEvents));
-
-
     }
-
 }
 

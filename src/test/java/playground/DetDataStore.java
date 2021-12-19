@@ -11,7 +11,6 @@ import java.util.stream.Collectors;
 
 public class DetDataStore {
 
-
     private final HashMap<JavaCodeUnit, ClassificationEnum> classification = new HashMap<>();
 
     private final Set<String> NOT_DET_API = Set.of(
@@ -20,18 +19,15 @@ public class DetDataStore {
     private final Set<String> DEF_DDET_API = Set.of();
     private final Set<String> DEF_SDET_API = Set.of();
 
-
-    boolean isKnownSDET(JavaCodeUnit methode) {
-
-        ClassificationEnum cl = classification.putIfAbsent(methode, ClassificationEnum.UNCHECKED);
+    boolean isKnownSDET(JavaCodeUnit codeUnit) {
+        ClassificationEnum cl = classification.putIfAbsent(codeUnit, ClassificationEnum.UNCHECKED);
         if (ClassificationEnum.UNCHECKED.equals(cl)) {
-            if (DEF_SDET_API.stream().anyMatch(a -> methode.getFullName().startsWith(a))) {
-                classification.put(methode, ClassificationEnum.SDET);
+            if (DEF_SDET_API.stream().anyMatch(a -> codeUnit.getFullName().startsWith(a))) {
+                classification.put(codeUnit, ClassificationEnum.SDET);
                 return true;
             }
         }
         return ClassificationEnum.SDET.equals(cl);
-
     }
 
     boolean isKnownSDET(Collection<JavaCodeUnit> methods) {
@@ -39,19 +35,19 @@ public class DetDataStore {
     }
 
 
-    boolean isKnownDDET(JavaCodeUnit methode) {
-        ClassificationEnum cl = classification.putIfAbsent(methode, ClassificationEnum.UNCHECKED);
+    boolean isKnownDDET(JavaCodeUnit codeUnit) {
+        ClassificationEnum cl = classification.putIfAbsent(codeUnit, ClassificationEnum.UNCHECKED);
         if (ClassificationEnum.UNCHECKED.equals(cl)) {
-            if (DEF_DDET_API.stream().anyMatch(a -> methode.getFullName().startsWith(a))) {
-                classification.put(methode, ClassificationEnum.DDET);
+            if (DEF_DDET_API.stream().anyMatch(a -> codeUnit.getFullName().startsWith(a))) {
+                classification.put(codeUnit, ClassificationEnum.DDET);
                 return true;
             }
         }
         return ClassificationEnum.DDET.equals(cl);
     }
 
-    boolean isKnownAtLeastDDET(JavaCodeUnit methode) {
-        return isKnownDDET(methode) || isKnownSDET(methode);
+    boolean isKnownAtLeastDDET(JavaCodeUnit codeUnit) {
+        return isKnownDDET(codeUnit) || isKnownSDET(codeUnit);
     }
 
     boolean isKnownAtLeastDDET(Collection<JavaCodeUnit> methods) {
@@ -62,12 +58,11 @@ public class DetDataStore {
         return methods.isEmpty() || methods.stream().anyMatch(this::isKnownDDET);
     }
 
-
-    boolean isKnownNotDET(JavaCodeUnit methode) {
-        ClassificationEnum cl = classification.putIfAbsent(methode, ClassificationEnum.UNCHECKED);
+    boolean isKnownNotDET(JavaCodeUnit codeUnit) {
+        ClassificationEnum cl = classification.putIfAbsent(codeUnit, ClassificationEnum.UNCHECKED);
         if (ClassificationEnum.UNCHECKED.equals(cl)) {
-            if (NOT_DET_API.stream().anyMatch(a -> methode.getFullName().startsWith(a))) {
-                classification.put(methode, ClassificationEnum.NOT_DET);
+            if (NOT_DET_API.stream().anyMatch(a -> codeUnit.getFullName().startsWith(a))) {
+                classification.put(codeUnit, ClassificationEnum.NOT_DET);
                 return true;
             }
         }
@@ -154,9 +149,8 @@ public class DetDataStore {
                 .collect(Collectors.joining("\n"));
     }
 
-    String getClassificationFor(JavaCodeUnit javaCodeUnit) {
-
-        return classification.getOrDefault(javaCodeUnit, ClassificationEnum.UNCHECKED).toString();
+    String getClassificationFor(JavaCodeUnit codeUnit) {
+        return classification.getOrDefault(codeUnit, ClassificationEnum.UNCHECKED).toString();
     }
 
     enum ClassificationEnum {
@@ -166,15 +160,15 @@ public class DetDataStore {
         SDET("SDET"),
         DDET("DET");
 
-        private String displayString;
+        private final String displayName;
 
         ClassificationEnum(String ds) {
-            displayString = ds;
+            displayName = ds;
         }
 
         @Override
         public String toString() {
-            return displayString;
+            return displayName;
         }
     }
 
