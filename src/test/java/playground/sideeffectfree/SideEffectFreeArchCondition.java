@@ -1,4 +1,4 @@
-package playground;
+package playground.sideeffectfree;
 
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaCodeUnit;
@@ -16,16 +16,16 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class NoSeiteneffectArchCondition extends ArchCondition<JavaClass> {
+public class SideEffectFreeArchCondition extends ArchCondition<JavaClass> {
 
-    private final SefDataStore classification;
+    private final SefDataStore dataStore;
     private final HashMap<String, JavaCodeUnit> ANALYSE_HELPER;
     private final Set<JavaCodeUnit> INFERFACES = new HashSet<>();
 
-    public NoSeiteneffectArchCondition(HashMap<String, JavaCodeUnit> analyseHelper, SefDataStore datastore, Object... args) {
+    public SideEffectFreeArchCondition(HashMap<String, JavaCodeUnit> analyseHelper, SefDataStore datastore, Object... args) {
         super("side effect free", args);
         ANALYSE_HELPER = analyseHelper;
-        classification = datastore;
+        dataStore = datastore;
     }
 
     /**
@@ -41,27 +41,27 @@ public class NoSeiteneffectArchCondition extends ArchCondition<JavaClass> {
         ANALYSE_HELPER.put(javaMethod.getFullName(), javaMethod); // Used to perform sone assertions
 
         /* ecentially classified by configured classification */
-        if (classification.alreadyClassified(javaMethod)) {
+        if (dataStore.alreadyClassified(javaMethod)) {
             return;
         }
 
         /* A operation which has no return parameters can not be SEF, because it is either changeing its parametes (call by reference)
          * or it can not do anything. so it is save to classify as not SEF */
         if (!javaMethod.isConstructor() && javaMethod.getRawReturnType().getFullName().equals("void")) {
-            classification.classifyNotSEF(javaMethod);
+            dataStore.classifyNotSEF(javaMethod);
             return;
         }
 
         /* Natiove Operations can not be analyzed, so handle as NotSEF */
         if (javaMethod.getModifiers().contains(JavaModifier.NATIVE)) {
-            classification.classifyNotSEF(javaMethod);
+            dataStore.classifyNotSEF(javaMethod);
             return;
         }
 
         /* Interfaces need special handling, because all its implementation needs to be SEf, so collect separatly */
         if (javaMethod.getOwner().isInterface() || javaMethod.getModifiers().contains(JavaModifier.ABSTRACT)) {
             INFERFACES.add(javaMethod);
-            classification.classifyUnsure(javaMethod);
+            dataStore.classifyUnsure(javaMethod);
             return;
         }
 
@@ -81,7 +81,7 @@ public class NoSeiteneffectArchCondition extends ArchCondition<JavaClass> {
             } else {
                 logViolation(conditionEvents, javaClass,
                         javaMethod.getFullName() + " is writing to at least one property");
-                classification.classifyNotSEF(javaMethod);
+                dataStore.classifyNotSEF(javaMethod);
                 return;
             }
         }
@@ -90,9 +90,9 @@ public class NoSeiteneffectArchCondition extends ArchCondition<JavaClass> {
 
         if (javaMethod.getMethodCallsFromSelf().isEmpty()) {
             if (strict) {
-                classification.classifySSEF(javaMethod);
+                dataStore.classifySSEF(javaMethod);
             } else {
-                classification.classifyDSEF(javaMethod);
+                dataStore.classifyDSEF(javaMethod);
             }
             return; // Wenn keine anderen Methoden aufgerufen werden, ist die Methode nun SEF
         }
@@ -105,35 +105,35 @@ public class NoSeiteneffectArchCondition extends ArchCondition<JavaClass> {
 
         // Wenn wir bisher keine Klassifizirung gefunden haben, dann schaffen wir es noch nicht.
 
-        classification.classifyUnsure(javaMethod);
+        dataStore.classifyUnsure(javaMethod);
     }
 
     private boolean validateMethodCalls(JavaCodeUnit codeUnit, ConditionEvents conditionEvents, boolean isStrict) {
         Set<JavaMethodCall> callsToCheck = codeUnit.getMethodCallsFromSelf();
 
         if (callsToCheck.isEmpty()) {
-            classification.classifySSEF(codeUnit);
+            dataStore.classifySSEF(codeUnit);
             return true;
         }
 
         for (JavaMethodCall call : callsToCheck) {
-            if (classification.isUnsure(call.getTarget().resolve())) {
+            if (dataStore.isUnsure(call.getTarget().resolve())) {
                 return false;
             }
-            if (classification.isKnownNotSEF(call.getTarget().resolve())) {
+            if (dataStore.isKnownNotSEF(call.getTarget().resolve())) {
                 logViolation(conditionEvents, codeUnit.getOwner(), codeUnit.getFullName() + " calls not SEF method ( one of" + call.getTarget() + ")");
-                classification.classifyNotSEF(codeUnit);
+                dataStore.classifyNotSEF(codeUnit);
                 return true;
             }
-            if (classification.isKnownDSEF(call.getTarget().resolve())) {
+            if (dataStore.isKnownDSEF(call.getTarget().resolve())) {
                 isStrict = false;
             }
         }
 
         if (isStrict) {
-            classification.classifySSEF(codeUnit);
+            dataStore.classifySSEF(codeUnit);
         } else {
-            classification.classifyDSEF(codeUnit);
+            dataStore.classifyDSEF(codeUnit);
         }
 
         return true;
@@ -141,35 +141,35 @@ public class NoSeiteneffectArchCondition extends ArchCondition<JavaClass> {
 
     private void logViolation(ConditionEvents conditionEvents, JavaClass owner, String meldung) {
 
-        if (owner.getFullName().startsWith("core.")) {
+        if (owner.getFullName().startsWith("app.")) {
             conditionEvents.add(SimpleConditionEvent.violated(owner, meldung));
         }
     }
 
     @Override
     public void finish(ConditionEvents conditionEvents) {
-        System.out.println(classification.info() + " Anzahl offene Interfaces: " + INFERFACES.size());
+        System.out.println(dataStore.info() + " Anzahl offene Interfaces: " + INFERFACES.size());
         boolean rerun = true;
         while (rerun) {
-            Set<JavaCodeUnit> unchecked = classification.getClMethods(SefDataStore.ClassificationEnum.UNCHECKED);
+            Set<JavaCodeUnit> unchecked = dataStore.getClMethods(SideEffectFreeClassification.UNCHECKED);
             rerun = !unchecked.isEmpty();
             for (JavaCodeUnit meth : unchecked) {
                 collectAndPreClassify(meth, conditionEvents);
             }
 
-            for (JavaCodeUnit meth : classification.getClMethods(SefDataStore.ClassificationEnum.UNSURE)) {
+            for (JavaCodeUnit meth : dataStore.getClMethods(SideEffectFreeClassification.UNSURE)) {
                 rerun |= validateMethodCalls(meth, conditionEvents, true);
             }
 
             rerun |= checkInterfaces();
-            System.out.println(classification.info() + " Anzahl offene Interfaces: " + INFERFACES.size());
+            System.out.println(dataStore.info() + " Anzahl offene Interfaces: " + INFERFACES.size());
         }
-        classification.getClMethods(SefDataStore.ClassificationEnum.UNSURE).forEach(un -> logUnsure(conditionEvents, un.getOwner(), un));
+        dataStore.getClMethods(SideEffectFreeClassification.UNSURE).forEach(un -> logUnsure(conditionEvents, un.getOwner(), un));
     }
 
     private void logUnsure(ConditionEvents conditionEvents, JavaClass owner, JavaCodeUnit meth) {
-        if (owner.getFullName().startsWith("core.")) {
-            Set<JavaMethodCall> unsure = meth.getMethodCallsFromSelf().stream().filter(c -> !classification.isKnownNotSEF(c.getTarget().resolve()) && !classification.isKnownDSEF(c.getTarget().resolve())).collect(Collectors.toSet());
+        if (owner.getFullName().startsWith("app.")) {
+            Set<JavaMethodCall> unsure = meth.getMethodCallsFromSelf().stream().filter(c -> !dataStore.isKnownNotSEF(c.getTarget().resolve()) && !dataStore.isKnownDSEF(c.getTarget().resolve())).collect(Collectors.toSet());
             conditionEvents.add(SimpleConditionEvent.violated(owner, "unsure about " + meth.getFullName() + " because of " + unsure));
         }
     }
@@ -177,14 +177,14 @@ public class NoSeiteneffectArchCondition extends ArchCondition<JavaClass> {
     private boolean checkInterfaces() {
         Set<JavaCodeUnit> toRemove = new HashSet<>();
         for (JavaCodeUnit anInterface : INFERFACES) {
-            if (anInterface.getOwner().getAllSubClasses().stream().allMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).allMatch(classification::isKnownSSEF))) {
-                classification.classifySSEF(anInterface);
+            if (anInterface.getOwner().getAllSubClasses().stream().allMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).allMatch(dataStore::isKnownSSEF))) {
+                dataStore.classifySSEF(anInterface);
                 toRemove.add(anInterface);
-            } else if (anInterface.getOwner().getAllSubClasses().stream().allMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).allMatch(classification::isKnownAtLeastDSEF))) {
-                classification.classifyDSEF(anInterface);
+            } else if (anInterface.getOwner().getAllSubClasses().stream().allMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).allMatch(dataStore::isKnownAtLeastDSEF))) {
+                dataStore.classifyDSEF(anInterface);
                 toRemove.add(anInterface);
-            } else if (anInterface.getOwner().getAllSubClasses().stream().anyMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).anyMatch(classification::isKnownNotSEF))) {
-                classification.isKnownNotSEF(anInterface);
+            } else if (anInterface.getOwner().getAllSubClasses().stream().anyMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).anyMatch(dataStore::isKnownNotSEF))) {
+                dataStore.isKnownNotSEF(anInterface);
                 toRemove.add(anInterface);
 
             }

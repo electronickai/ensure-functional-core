@@ -1,4 +1,4 @@
-package playground;
+package playground.sideeffectfree;
 
 import com.tngtech.archunit.core.domain.JavaCodeUnit;
 
@@ -11,21 +11,21 @@ import java.util.stream.Collectors;
 
 public class SefDataStore {
 
-    private final HashMap<JavaCodeUnit, ClassificationEnum> classification = new HashMap<>();
+    private final HashMap<JavaCodeUnit, SideEffectFreeClassification> classification = new HashMap<>();
 
     private final Set<String> NOT_SEF_API = Set.of("java.io.", "java.nio.", "java.reflect.", "jdk.internal.", "sun.management.", "sun.reflect.", "java.net.", "java.security.", "javax.xml", "sun.invoke.", "javax.management.", "org.w3c.", "java.util.concurrent.", "java.util.logging.", "java.lang.invoke.", "java.util.stream");
     private final Set<String> DEF_DSEF_API = Set.of("java.util.logging.", "java.util.function.BiConsumer");
     private final Set<String> DEF_SSEF_API = Set.of("java.lang.Object.clone()", "java.lang.Object.hashCode()", "java.lang.Object.toString()", "java.lang.Object.getClass()", "java.lang.Class.getSimpleName()", "java.lang.Class.privateGetPublicMethods()", "java.lang.Class.getGenericInfo()");
 
-    boolean isKnownSSEF(JavaCodeUnit codeUnit) {
-        ClassificationEnum cl = classification.putIfAbsent(codeUnit, ClassificationEnum.UNCHECKED);
-        if (ClassificationEnum.UNCHECKED.equals(cl)) {
+    public boolean isKnownSSEF(JavaCodeUnit codeUnit) {
+        SideEffectFreeClassification cl = classification.putIfAbsent(codeUnit, SideEffectFreeClassification.UNCHECKED);
+        if (SideEffectFreeClassification.UNCHECKED.equals(cl)) {
             if (DEF_SSEF_API.stream().anyMatch(a -> codeUnit.getFullName().startsWith(a))) {
-                classification.put(codeUnit, ClassificationEnum.SSEF);
+                classification.put(codeUnit, SideEffectFreeClassification.SSEF);
                 return true;
             }
         }
-        return ClassificationEnum.SSEF.equals(cl);
+        return SideEffectFreeClassification.SSEF.equals(cl);
     }
 
     boolean isKnownSSEF(Collection<JavaCodeUnit> methods) {
@@ -33,15 +33,15 @@ public class SefDataStore {
     }
 
 
-    boolean isKnownDSEF(JavaCodeUnit codeUnit) {
-        ClassificationEnum cl = classification.putIfAbsent(codeUnit, ClassificationEnum.UNCHECKED);
-        if (ClassificationEnum.UNCHECKED.equals(cl)) {
+    public boolean isKnownDSEF(JavaCodeUnit codeUnit) {
+        SideEffectFreeClassification cl = classification.putIfAbsent(codeUnit, SideEffectFreeClassification.UNCHECKED);
+        if (SideEffectFreeClassification.UNCHECKED.equals(cl)) {
             if (DEF_DSEF_API.stream().anyMatch(a -> codeUnit.getFullName().startsWith(a))) {
-                classification.put(codeUnit, ClassificationEnum.DSEF);
+                classification.put(codeUnit, SideEffectFreeClassification.DSEF);
                 return true;
             }
         }
-        return ClassificationEnum.DSEF.equals(cl);
+        return SideEffectFreeClassification.DSEF.equals(cl);
     }
 
     boolean isKnownAtLeastDSEF(JavaCodeUnit codeUnit) {
@@ -57,15 +57,15 @@ public class SefDataStore {
     }
 
 
-    boolean isKnownNotSEF(JavaCodeUnit codeUnit) {
-        ClassificationEnum cl = classification.putIfAbsent(codeUnit, ClassificationEnum.UNCHECKED);
-        if (ClassificationEnum.UNCHECKED.equals(cl)) {
+    public boolean isKnownNotSEF(JavaCodeUnit codeUnit) {
+        SideEffectFreeClassification cl = classification.putIfAbsent(codeUnit, SideEffectFreeClassification.UNCHECKED);
+        if (SideEffectFreeClassification.UNCHECKED.equals(cl)) {
             if (NOT_SEF_API.stream().anyMatch(a -> codeUnit.getFullName().startsWith(a))) {
-                classification.put(codeUnit, ClassificationEnum.NOT_SEF);
+                classification.put(codeUnit, SideEffectFreeClassification.NOT_SEF);
                 return true;
             }
         }
-        return ClassificationEnum.NOT_SEF.equals(cl);
+        return SideEffectFreeClassification.NOT_SEF.equals(cl);
     }
 
     boolean isKnownNotSEF(Collection<? extends JavaCodeUnit> methods) {
@@ -73,8 +73,8 @@ public class SefDataStore {
     }
 
     public boolean isUnsure(JavaCodeUnit javaCodeUnit) {
-        ClassificationEnum cl = classification.putIfAbsent(javaCodeUnit, ClassificationEnum.UNCHECKED);
-        return ClassificationEnum.UNSURE.equals(cl) || ClassificationEnum.UNCHECKED.equals(cl);
+        SideEffectFreeClassification cl = classification.putIfAbsent(javaCodeUnit, SideEffectFreeClassification.UNCHECKED);
+        return SideEffectFreeClassification.UNSURE.equals(cl) || SideEffectFreeClassification.UNCHECKED.equals(cl);
     }
 
     boolean isUnsure(Collection<? extends JavaCodeUnit> methods) {
@@ -86,23 +86,23 @@ public class SefDataStore {
 
     }
 
-    public void classifyNotSEF(JavaCodeUnit javaCodeUnit) {
-        classification.put(javaCodeUnit, ClassificationEnum.NOT_SEF);
+    void classifyNotSEF(JavaCodeUnit javaCodeUnit) {
+        classification.put(javaCodeUnit, SideEffectFreeClassification.NOT_SEF);
     }
 
-    public void classifySSEF(JavaCodeUnit javaCodeUnit) {
-        classification.put(javaCodeUnit, ClassificationEnum.SSEF);
+    void classifySSEF(JavaCodeUnit javaCodeUnit) {
+        classification.put(javaCodeUnit, SideEffectFreeClassification.SSEF);
     }
 
-    public void classifyDSEF(JavaCodeUnit javaCodeUnit) {
-        classification.put(javaCodeUnit, ClassificationEnum.DSEF);
+    void classifyDSEF(JavaCodeUnit javaCodeUnit) {
+        classification.put(javaCodeUnit, SideEffectFreeClassification.DSEF);
     }
 
-    public void classifyUnsure(JavaCodeUnit javaCodeUnit) {
-        classification.put(javaCodeUnit, ClassificationEnum.UNSURE);
+    void classifyUnsure(JavaCodeUnit javaCodeUnit) {
+        classification.put(javaCodeUnit, SideEffectFreeClassification.UNSURE);
     }
 
-    public String info() {
+    String info() {
 
         int ssef = 0;
         int dsef = 0;
@@ -110,7 +110,7 @@ public class SefDataStore {
         int us = 0;
         int uc = 0;
 
-        for (Map.Entry<JavaCodeUnit, ClassificationEnum> entry : classification.entrySet()) {
+        for (Map.Entry<JavaCodeUnit, SideEffectFreeClassification> entry : classification.entrySet()) {
             switch (entry.getValue()) {
                 case SSEF:
                     ssef++;
@@ -131,45 +131,24 @@ public class SefDataStore {
         }
 
         Formatter fo =  new Formatter();
-        return  fo.format("Gesamt %d6 Anzahl SSEF:  %d6  Anzahl DSEF: %d6  Anzahl unsure: %d6  Anzahl NotSEF:  %d6  Anzahl UNKOWN: %d6" , classification.size(), ssef, dsef, us,  nsef, uc).toString();
+        return fo.format("Gesamt %d Anzahl SSEF:  %d  Anzahl DSEF: %d  Anzahl unsure: %d  Anzahl NotSEF:  %d  Anzahl UNKOWN: %d", classification.size(), ssef, dsef, us, nsef, uc).toString();
     }
 
-    public Set<JavaCodeUnit> getClMethods(ClassificationEnum cl) {
+    Set<JavaCodeUnit> getClMethods(SideEffectFreeClassification cl) {
         return classification.entrySet().stream()
                 .filter(m -> m.getValue().equals(cl))
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
     }
 
-    String getOfClassification(ClassificationEnum cl) {
+    String getOfClassification(SideEffectFreeClassification cl) {
         return classification.entrySet().stream()
                 .filter(m -> m.getValue().equals(cl))
                 .map(Map.Entry::getKey).map(JavaCodeUnit::getFullName)
                 .collect(Collectors.joining("\n"));
     }
 
-    String getClassificationFor(JavaCodeUnit javaCodeUnit) {
-        return classification.getOrDefault(javaCodeUnit, ClassificationEnum.UNCHECKED).toString();
+    public String getClassificationFor(JavaCodeUnit javaCodeUnit) {
+        return classification.getOrDefault(javaCodeUnit, SideEffectFreeClassification.UNCHECKED).toString();
     }
-
-    enum ClassificationEnum {
-        UNCHECKED("unchecked (SEF)"),
-        UNSURE("unsure (SEF)"),
-        NOT_SEF("not SEF"),
-        SSEF("strictly SEF"),
-        DSEF("domain SEF");
-
-        private final String displayName;
-
-        ClassificationEnum(String ds) {
-            displayName = ds;
-        }
-
-        @Override
-        public String toString() {
-            return displayName;
-        }
-    }
-
-
 }

@@ -14,7 +14,7 @@ repositories {
 
 dependencies {
     testCompile 'junit:junit:4.13.2'
-    implementation 'com.tngtech.archunit:archunit-junit5:0.22.0'
+    testImplementation 'com.tngtech.archunit:archunit-junit5:0.22.0'
     testImplementation 'net.jqwik:jqwik:1.6.0'
     testImplementation group: 'org.assertj', name: 'assertj-core', version: '3.19.0'
 }

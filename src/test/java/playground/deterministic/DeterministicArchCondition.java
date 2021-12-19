@@ -1,4 +1,4 @@
-package playground;
+package playground.deterministic;
 
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaCodeUnit;
@@ -13,16 +13,16 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class DeterminiticArchCondition extends ArchCondition<JavaClass> {
+public class DeterministicArchCondition extends ArchCondition<JavaClass> {
 
-    private final DetDataStore classification;
+    private final DetDataStore dataStore;
     private final HashMap<String, JavaCodeUnit> ANALYSE_HELPER;
     private final Set<JavaCodeUnit> INFERFACES = new HashSet<>();
 
-    public DeterminiticArchCondition(HashMap<String, JavaCodeUnit> analyseHelper, DetDataStore datastore, Object... args) {
+    public DeterministicArchCondition(HashMap<String, JavaCodeUnit> analyseHelper, DetDataStore datastore, Object... args) {
         super("side effect free", args);
         ANALYSE_HELPER = analyseHelper;
-        classification = datastore;
+        dataStore = datastore;
     }
 
     /**
@@ -38,27 +38,27 @@ public class DeterminiticArchCondition extends ArchCondition<JavaClass> {
         ANALYSE_HELPER.put(javaMethod.getFullName(), javaMethod); // Used to perform sone assertions
 
         /* ecentially classified by configured classification */
-        if (classification.alreadyClassified(javaMethod)) {
+        if (dataStore.alreadyClassified(javaMethod)) {
             return;
         }
 
         if (javaMethod.getMethodCallsFromSelf().isEmpty() && javaMethod.getFieldAccesses().isEmpty()) {
-            classification.classifySDET(javaMethod);
+            dataStore.classifySDET(javaMethod);
             return;
         }
 
         if (javaMethod.getRawReturnType().getFullName().equals("void")) {
-            classification.classifySDET(javaMethod);
+            dataStore.classifySDET(javaMethod);
             return;
         }
 
         /* Native Operations can not be analyzed, so handle as NotSEF */
         if (javaMethod.getModifiers().contains(JavaModifier.NATIVE)) {
-            classification.classifyNotDET(javaMethod);
+            dataStore.classifyNotDET(javaMethod);
             return;
         }
 
-        classification.classifyUnsure(javaMethod);
+        dataStore.classifyUnsure(javaMethod);
 
     }
 
@@ -66,24 +66,24 @@ public class DeterminiticArchCondition extends ArchCondition<JavaClass> {
         Set<JavaMethodCall> callsToCheck = codeUnit.getMethodCallsFromSelf();
 
         if (callsToCheck.isEmpty()) {
-            classification.classifySDET(codeUnit);
+            dataStore.classifySDET(codeUnit);
             return true;
         }
 
         for (JavaMethodCall call : callsToCheck) {
-            if (classification.isUnsure(call.getTarget().resolve())) {
+            if (dataStore.isUnsure(call.getTarget().resolve())) {
                 return false;
             }
-            if (classification.isKnownNotDET(call.getTarget().resolve())) {
-                classification.classifyNotDET(codeUnit);
+            if (dataStore.isKnownNotDET(call.getTarget().resolve())) {
+                dataStore.classifyNotDET(codeUnit);
                 return true;
             }
         }
 
         if (isStrict) {
-            classification.classifySDET(codeUnit);
+            dataStore.classifySDET(codeUnit);
         } else {
-            classification.classifyDDET(codeUnit);
+            dataStore.classifyDDET(codeUnit);
         }
 
         return true;
@@ -91,35 +91,35 @@ public class DeterminiticArchCondition extends ArchCondition<JavaClass> {
 
     private void logViolation(ConditionEvents conditionEvents, JavaClass owner, String meldung) {
 
-        if (owner.getFullName().startsWith("core.")) {
+        if (owner.getFullName().startsWith("app.")) {
             conditionEvents.add(SimpleConditionEvent.violated(owner, meldung));
         }
     }
 
     @Override
     public void finish(ConditionEvents conditionEvents) {
-        System.out.println(classification.info() + " Anzahl offene Interfaces: " + INFERFACES.size());
+        System.out.println(dataStore.info() + " Anzahl offene Interfaces: " + INFERFACES.size());
         boolean rerun = true;
         while (rerun) {
-            Set<JavaCodeUnit> unchecked = classification.getClMethods(DetDataStore.ClassificationEnum.UNCHECKED);
+            Set<JavaCodeUnit> unchecked = dataStore.getClMethods(DeterministicClassification.UNCHECKED);
             rerun = !unchecked.isEmpty();
             for (JavaCodeUnit meth : unchecked) {
                 collectAndPreClassify(meth, conditionEvents);
             }
 
-            for (JavaCodeUnit meth : classification.getClMethods(DetDataStore.ClassificationEnum.UNSURE)) {
+            for (JavaCodeUnit meth : dataStore.getClMethods(DeterministicClassification.UNSURE)) {
                 rerun |= validateMethodCalls(meth, conditionEvents, true);
             }
 
             rerun |= checkInterfaces();
-            System.out.println(classification.info() + " Anzahl offene Interfaces: " + INFERFACES.size());
+            System.out.println(dataStore.info() + " Anzahl offene Interfaces: " + INFERFACES.size());
         }
-        classification.getClMethods(DetDataStore.ClassificationEnum.UNSURE).forEach(un -> logUnsure(conditionEvents, un.getOwner(), un));
+        dataStore.getClMethods(DeterministicClassification.UNSURE).forEach(un -> logUnsure(conditionEvents, un.getOwner(), un));
     }
 
     private void logUnsure(ConditionEvents conditionEvents, JavaClass owner, JavaCodeUnit meth) {
-        if (owner.getFullName().startsWith("core.")) {
-            Set<JavaMethodCall> unsure = meth.getMethodCallsFromSelf().stream().filter(c -> !classification.isKnownNotDET(c.getTarget().resolve()) && !classification.isKnownDDET(c.getTarget().resolve())).collect(Collectors.toSet());
+        if (owner.getFullName().startsWith("app.")) {
+            Set<JavaMethodCall> unsure = meth.getMethodCallsFromSelf().stream().filter(c -> !dataStore.isKnownNotDET(c.getTarget().resolve()) && !dataStore.isKnownDDET(c.getTarget().resolve())).collect(Collectors.toSet());
             conditionEvents.add(SimpleConditionEvent.violated(owner, "unsure about " + meth.getFullName() + " because of " + unsure));
         }
     }
@@ -127,14 +127,14 @@ public class DeterminiticArchCondition extends ArchCondition<JavaClass> {
     private boolean checkInterfaces() {
         Set<JavaCodeUnit> toRemove = new HashSet<>();
         for (JavaCodeUnit anInterface : INFERFACES) {
-            if (anInterface.getOwner().getAllSubClasses().stream().allMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).allMatch(classification::isKnownSDET))) {
-                classification.classifySDET(anInterface);
+            if (anInterface.getOwner().getAllSubClasses().stream().allMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).allMatch(dataStore::isKnownSDET))) {
+                dataStore.classifySDET(anInterface);
                 toRemove.add(anInterface);
-            } else if (anInterface.getOwner().getAllSubClasses().stream().allMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).allMatch(classification::isKnownAtLeastDDET))) {
-                classification.classifyDDET(anInterface);
+            } else if (anInterface.getOwner().getAllSubClasses().stream().allMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).allMatch(dataStore::isKnownAtLeastDDET))) {
+                dataStore.classifyDDET(anInterface);
                 toRemove.add(anInterface);
-            } else if (anInterface.getOwner().getAllSubClasses().stream().anyMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).anyMatch(classification::isKnownNotDET))) {
-                classification.isKnownNotDET(anInterface);
+            } else if (anInterface.getOwner().getAllSubClasses().stream().anyMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).anyMatch(dataStore::isKnownNotDET))) {
+                dataStore.isKnownNotDET(anInterface);
                 toRemove.add(anInterface);
 
             }

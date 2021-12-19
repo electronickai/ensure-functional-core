@@ -1,4 +1,4 @@
-package core;
+package app;
 
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -6,7 +6,7 @@ import java.util.Collections;
 import java.util.List;
 
 
-public class Core {
+public class Application {
 
     /**
      * Classify as SSEF

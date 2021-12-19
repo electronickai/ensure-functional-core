@@ -1,6 +1,6 @@
 package playground;
 
-import core.Core;
+import app.Application;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
 import net.jqwik.api.ForAll;
@@ -16,7 +16,7 @@ public class PropertyTest {
         //Arrange
         int initialSize = initialList.size();
         //Act
-        List<String> listWithNewElement = new Core().addNewElement(initialList, nullString);
+        List<String> listWithNewElement = new Application().addNewElement(initialList, nullString);
         //Assert
         return listWithNewElement.size() == initialSize;
     }
@@ -26,7 +26,7 @@ public class PropertyTest {
         //Arrange
         int initialSize = initialList.size();
         //Act
-        List<String> listWithNewElement = new Core().addNewElement(initialList, newElement);
+        List<String> listWithNewElement = new Application().addNewElement(initialList, newElement);
         //Assert
         return listWithNewElement.size() == initialSize + 1;
     }
@@ -34,7 +34,7 @@ public class PropertyTest {
     @Property
     boolean addNewElement_lastElementIsTheNewElement(@ForAll List<String> initialList, @ForAll String newElement) {
         //Act
-        List<String> listWithNewElement = new Core().addNewElement(initialList, newElement);
+        List<String> listWithNewElement = new Application().addNewElement(initialList, newElement);
         //Assert
         String lastElement = listWithNewElement.get(listWithNewElement.size() - 1);
         return lastElement.equals(newElement);

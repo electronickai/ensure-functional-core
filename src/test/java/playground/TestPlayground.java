@@ -9,6 +9,10 @@ import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
 import org.junit.AssumptionViolatedException;
+import playground.deterministic.DetDataStore;
+import playground.deterministic.DeterministicArchCondition;
+import playground.sideeffectfree.SefDataStore;
+import playground.sideeffectfree.SideEffectFreeArchCondition;
 
 import java.util.Formatter;
 import java.util.HashMap;
@@ -16,21 +20,21 @@ import java.util.HashMap;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 
 
-//@AnalyzeClasses(packages = {"core..", "java.lang..", "java.util..", "sun.util.locale..", "sun.util.calendar..", "java.math..", "java.text..", "java.time..", "java.util.logging.."}, importOptions = ImportOption.DoNotIncludeTests.class)
-@AnalyzeClasses(packages = {"core..", "java..", "jdk.internal.."}, importOptions = ImportOption.DoNotIncludeTests.class)
-//@AnalyzeClasses(packages = {"core.."}, importOptions = ImportOption.DoNotIncludeTests.class)
+//@AnalyzeClasses(packages = {"app..", "java.lang..", "java.util..", "sun.util.locale..", "sun.util.calendar..", "java.math..", "java.text..", "java.time..", "java.util.logging.."}, importOptions = ImportOption.DoNotIncludeTests.class)
+@AnalyzeClasses(packages = {"app..", "java..", "jdk.internal.."}, importOptions = ImportOption.DoNotIncludeTests.class)
+//@AnalyzeClasses(packages = {"app.."}, importOptions = ImportOption.DoNotIncludeTests.class)
 public class TestPlayground {
 
     private static HashMap<String, JavaCodeUnit> analyse = new HashMap<>();
-    private static final SefDataStore sefClassification = new SefDataStore();
-    private static final DetDataStore detClassification = new DetDataStore();
+    private static final SefDataStore sefDataStore = new SefDataStore();
+    private static final DetDataStore detDataStore = new DetDataStore();
     private static final Formatter formatter = new Formatter();
 
     private static final ArchCondition<? super JavaClass> BE_SEF
-            = new NoSeiteneffectArchCondition(analyse, sefClassification);
+            = new SideEffectFreeArchCondition(analyse, sefDataStore);
 
     private static final ArchCondition<? super JavaClass> BE_DET
-            = new DeterminiticArchCondition(analyse, detClassification);
+            = new DeterministicArchCondition(analyse, detDataStore);
 
     @ArchTest
     public static final ArchRule TEST_SEF
@@ -49,9 +53,9 @@ public class TestPlayground {
 
         System.out.println("Check Results for deterministic conditions: ");
 
-        assertSDet("core.Core.isDeterministicBecauseVoid()");
-        assertNotDet("core.Core.returnRandom()");
-        assertSDet("core.Core.addNumbers(int, int)");
+        assertSDet("app.Application.isDeterministicBecauseVoid()");
+        assertNotDet("app.Application.returnRandom()");
+        assertSDet("app.Application.addNumbers(int, int)");
         assertSDet("java.sql.Time.getMonth()");
         assertNotDet("java.time.LocalDate.now()");
 
@@ -64,12 +68,12 @@ public class TestPlayground {
 
         System.out.println("Check Results for side effects: ");
 
-        assertNotSEF("core.Core.addBoeseNewElement(java.util.List, java.lang.String)");
-        assertSSEF("core.Core.add(int, int)");
-        assertNotSEF("core.Core.doNothing()");
-        assertNotSEF("core.Core.doUnneccessaryStuff()");
-        assertSSEF("core.Core.addNewElement(java.util.List, java.lang.String)");
-        assertSSEF("core.Core.addNewTalkForwad(java.util.List, java.lang.String)");
+        assertNotSEF("app.Application.addBoeseNewElement(java.util.List, java.lang.String)");
+        assertSSEF("app.Application.add(int, int)");
+        assertNotSEF("app.Application.doNothing()");
+        assertNotSEF("app.Application.doUnneccessaryStuff()");
+        assertSSEF("app.Application.addNewElement(java.util.List, java.lang.String)");
+        assertSSEF("app.Application.addNewTalkForwad(java.util.List, java.lang.String)");
 
         assertSSEF("java.lang.ThreadLocal$SuppliedThreadLocal.initialValue()");
         assertSSEF("java.lang.ThreadLocal.initialValue()");
@@ -81,10 +85,10 @@ public class TestPlayground {
         assertSSEF("java.lang.String.valueOf([C)");
 
         /* Fragwuerdig */
-        assertDSEF("core.Core.getRandomInit()");
+        assertDSEF("app.Application.getRandomInit()");
 
         /* Lazy initialization */
-        assertDSEF("core.Core.getLazy()");
+        assertDSEF("app.Application.getLazy()");
         assertNotSEF("java.lang.Class.getSimpleName()"); // TODO soll mindestens DSEF werden
 
         /* Native Operations */
@@ -103,12 +107,11 @@ public class TestPlayground {
         if (!assrt) {
             throw new AssumptionViolatedException(formatter.format(message, (Object[]) args).toString());
         }
-
     }
 
     static void assertNotSEF(String meth) {
         if (analyse.containsKey(meth)) {
-            assertTrue(sefClassification.isKnownNotSEF(analyse.get(meth)),
+            assertTrue(sefDataStore.isKnownNotSEF(analyse.get(meth)),
                     "Regression of result for %s should be \"NotSEF\" but was \"%s\"", meth, getClassificationForSef(meth));
         } else {
             throw new AssumptionViolatedException("Methode " + meth + " not found!");
@@ -117,7 +120,7 @@ public class TestPlayground {
 
     static void assertNotDet(String meth) {
         if (analyse.containsKey(meth)) {
-            assertTrue(detClassification.isKnownNotDET(analyse.get(meth)),
+            assertTrue(detDataStore.isKnownNotDET(analyse.get(meth)),
                     "Regression of result for %s should be \"NotDet\" but was \"%s\"", meth, getClassificationForDet(meth));
         } else {
             throw new AssumptionViolatedException("Methode " + meth + " not found!");
@@ -126,7 +129,7 @@ public class TestPlayground {
 
     static void assertSDet(String meth) {
         if (analyse.containsKey(meth)) {
-            assertTrue(detClassification.isKnownSDET(analyse.get(meth)),
+            assertTrue(detDataStore.isKnownSDET(analyse.get(meth)),
                     "Regression of result for %s should be \"SDET\" but was \"%s\"", meth, getClassificationForDet(meth));
         } else {
             throw new AssumptionViolatedException("Methode " + meth + " not found!");
@@ -135,7 +138,7 @@ public class TestPlayground {
 
     static void assertSSEF(String meth) {
         if (analyse.containsKey(meth)) {
-            assertTrue(sefClassification.isKnownSSEF(analyse.get(meth)),
+            assertTrue(sefDataStore.isKnownSSEF(analyse.get(meth)),
                     "Regression of result for %s should be \"SSEF\" but was \"%s\"", meth, getClassificationForSef(meth));
         } else {
             throw new AssumptionViolatedException("Methode " + meth + " not found!");
@@ -144,7 +147,7 @@ public class TestPlayground {
 
     static void assertDSEF(String meth) {
         if (analyse.containsKey(meth)) {
-            assertTrue(sefClassification.isKnownDSEF(analyse.get(meth)),
+            assertTrue(sefDataStore.isKnownDSEF(analyse.get(meth)),
                     "Regression of result for %s should be \"DSEF\" but was \"%s\"", meth, getClassificationForSef(meth));
         } else {
             throw new AssumptionViolatedException("Methode " + meth + " not found!");
@@ -153,7 +156,7 @@ public class TestPlayground {
 
     static void assertUnsure(String meth) {
         if (analyse.containsKey(meth)) {
-            assertTrue(sefClassification.isUnsure(analyse.get(meth)),
+            assertTrue(sefDataStore.isUnsure(analyse.get(meth)),
                     "Regression of result for %s should be \"Unsure\" but was \"%s\"", meth, getClassificationForSef(meth));
         } else {
             throw new AssumptionViolatedException("Methode " + meth + " not found!");
@@ -162,7 +165,7 @@ public class TestPlayground {
 
     static String getClassificationForSef(String javaMethod) {
         if (analyse.containsKey(javaMethod)) {
-            return sefClassification.getClassificationFor(analyse.get(javaMethod));
+            return sefDataStore.getClassificationFor(analyse.get(javaMethod));
         } else {
             return "NOT FOUND";
         }
@@ -170,7 +173,7 @@ public class TestPlayground {
 
     static String getClassificationForDet(String javaMethod) {
         if (analyse.containsKey(javaMethod)) {
-            return detClassification.getClassificationFor(analyse.get(javaMethod));
+            return detDataStore.getClassificationFor(analyse.get(javaMethod));
         } else {
             return "NOT FOUND";
         }
