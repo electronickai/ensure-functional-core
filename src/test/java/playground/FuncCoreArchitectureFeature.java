@@ -1,4 +1,4 @@
-package architecture;
+package playground;
 
 import com.tngtech.archunit.PublicAPI;
 import com.tngtech.archunit.base.Optional;
@@ -30,7 +30,7 @@ public final class FuncCoreArchitectureFeature {
      * .wherePredefinedCatalogIsExcluded()
      * .wherePackage("java.util.concurrent..").isConsideredNonDeterministic()
      * .wherePackage("java.lang.invoke..").isConsideredNonDeterministic()
-     * .wherePackage("java.util.stream..").isConsideredPure()
+     * .wherePackage("java.util.stream..").isConsideredStrictlySideEffectFree()
      * </code></pre>
      * NOTE: The packages like java.util.concurrent and java.lan.invoke (and others) would already be declared as non deterministic in a predefined catalog. This catalog could be used by either omitting wherePredefinedCatalogIsExcluded() or by explicitly declaring wherePredefinedCatalogIsUsed()
      *
@@ -44,11 +44,15 @@ public final class FuncCoreArchitectureFeature {
     public static final class FunctionalCoreArchitecture implements ArchRule {
         private String[] shellPackageIdentifiers = new String[0];
         private String[] corePackageIdentifiers = new String[0];
-        ;
+
         private boolean usePredefinedCatalog = true;
+        private Set<String> deterministicPackages = new LinkedHashSet<>();
         private Set<String> nonDeterministicPackages = new LinkedHashSet<>();
-        private Set<String> purePackages = new LinkedHashSet<>();
-        //        private Set<String> nonSideEffectFreePackages = new LinkedHashSet<>(); //TODO: Shall we define that as configurable?
+
+        private Set<String> nonSideEffectFreePackages = new LinkedHashSet<>();
+        private Set<String> domainSpecificSideEffectFreePackages = new LinkedHashSet<>();
+        private Set<String> strictlySideEffectFreePackages = new LinkedHashSet<>();
+
         private final Optional<String> overriddenDescription = Optional.empty();
 
         private FunctionalCoreArchitecture() {
@@ -83,13 +87,28 @@ public final class FuncCoreArchitectureFeature {
             return new PackageClassification(packageIdentifier);
         }
 
+        private FunctionalCoreArchitecture addDeterministicPackage(String packageIdentifier) {
+            deterministicPackages.add(packageIdentifier);
+            return this;
+        }
+
         private FunctionalCoreArchitecture addNonDeterministicPackage(String packageIdentifier) {
             nonDeterministicPackages.add(packageIdentifier);
             return this;
         }
 
-        private FunctionalCoreArchitecture addPurePackage(String packageIdentifier) {
-            purePackages.add(packageIdentifier);
+        private FunctionalCoreArchitecture addNonSideEffectFreePackage(String packageIdentifier) {
+            nonSideEffectFreePackages.add(packageIdentifier);
+            return this;
+        }
+
+        private FunctionalCoreArchitecture addDomainSpecificSideEffectFreePackage(String packageIdentifier) {
+            domainSpecificSideEffectFreePackages.add(packageIdentifier);
+            return this;
+        }
+
+        private FunctionalCoreArchitecture addStrictlySideEffectFreePackage(String packageIdentifier) {
+            strictlySideEffectFreePackages.add(packageIdentifier);
             return this;
         }
 
@@ -142,13 +161,28 @@ public final class FuncCoreArchitectureFeature {
             }
 
             @PublicAPI(usage = ACCESS)
+            public FunctionalCoreArchitecture isConsideredDeterministic() {
+                return FunctionalCoreArchitecture.this.addDeterministicPackage(packageIdentifier);
+            }
+
+            @PublicAPI(usage = ACCESS)
             public FunctionalCoreArchitecture isConsideredNonDeterministic() {
                 return FunctionalCoreArchitecture.this.addNonDeterministicPackage(packageIdentifier);
             }
 
             @PublicAPI(usage = ACCESS)
-            public FunctionalCoreArchitecture isConsideredPure() {
-                return FunctionalCoreArchitecture.this.addPurePackage(packageIdentifier);
+            public FunctionalCoreArchitecture isConsideredNonSideEffectFree() {
+                return FunctionalCoreArchitecture.this.addNonSideEffectFreePackage(packageIdentifier);
+            }
+
+            @PublicAPI(usage = ACCESS)
+            public FunctionalCoreArchitecture isConsideredDomainSpecificSideEffectFree() {
+                return FunctionalCoreArchitecture.this.addDomainSpecificSideEffectFreePackage(packageIdentifier);
+            }
+
+            @PublicAPI(usage = ACCESS)
+            public FunctionalCoreArchitecture isConsideredStrictlySideEffectFree() {
+                return FunctionalCoreArchitecture.this.addStrictlySideEffectFreePackage(packageIdentifier);
             }
         }
     }
