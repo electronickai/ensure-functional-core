@@ -69,7 +69,7 @@ public class DetDataStore {
         return methods.isEmpty() || methods.stream().anyMatch(this::isKnownNotDET);
     }
 
-    boolean isUnsure(JavaCodeUnit javaCodeUnit) {
+    public boolean isUnsure(JavaCodeUnit javaCodeUnit) {
         DeterministicClassification cl = classification.putIfAbsent(javaCodeUnit, DeterministicClassification.UNCHECKED);
         return DeterministicClassification.UNSURE.equals(cl) || DeterministicClassification.UNCHECKED.equals(cl);
     }

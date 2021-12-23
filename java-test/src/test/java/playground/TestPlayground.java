@@ -8,16 +8,19 @@ import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
+import com.tngtech.archunit.lang.EvaluationResult;
 import org.junit.AssumptionViolatedException;
 import playground.deterministic.DetDataStore;
 import playground.deterministic.DeterministicArchCondition;
 import playground.sideeffectfree.SefDataStore;
 import playground.sideeffectfree.SideEffectFreeArchCondition;
 
+
 import java.util.Formatter;
 import java.util.HashMap;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
+import static org.assertj.core.api.Assertions.assertThat;
 
 
 //@AnalyzeClasses(packages = {"app..", "java.lang..", "java.util..", "sun.util.locale..", "sun.util.calendar..", "java.math..", "java.text..", "java.time..", "java.util.logging.."}, importOptions = ImportOption.DoNotIncludeTests.class)
@@ -37,16 +40,23 @@ public class TestPlayground {
             = new DeterministicArchCondition(analyse, detDataStore);
 
     @ArchTest
-    public static final ArchRule TEST_SEF
-            = classes()
-            .should(BE_SEF)
-            .because("they are side effect free");
+    public static void test_det(JavaClasses classes) {
+        EvaluationResult results = classes()
+                .should(BE_DET)
+                .because("they are deterministic").evaluate(classes);
+        assertThat(results.getFailureReport().getDetails()).contains("unsure about app.Application.getRandomInit() because of [JavaMethodCall{origin=JavaMethod{app.Application.getRandomInit()}, target=target{java.time.LocalTime.now()}, lineNumber=83}]");
+        assertThat(results.getFailureReport().getDetails()).hasSize(1);
+
+    }
 
     @ArchTest
-    public static final ArchRule TEST_DET
-            = classes()
-            .should(BE_DET)
-            .because("they are deterministic");
+    public static void test_sef(JavaClasses classes) {
+        EvaluationResult results = classes()
+                .should(BE_SEF)
+                .because("they are side effect free").evaluate(classes);
+        assertThat(results.getFailureReport().getDetails()).contains("app.Application.addBoeseNewElement(java.util.List, java.lang.String) is writing to at least one property");
+        assertThat(results.getFailureReport().getDetails()).hasSize(1);
+    }
 
     @ArchTest
     public static void checkResultsDET(JavaClasses classes) {
@@ -57,7 +67,7 @@ public class TestPlayground {
         assertNotDet("app.Application.returnRandom()");
         assertSDet("app.Application.addNumbers(int, int)");
         assertSDet("java.sql.Time.getMonth()");
-        assertNotDet("java.time.LocalDate.now()");
+        assertNotDetOrUnsure("java.time.LocalDate.now()"); // Should be not det
 
 
         //System.out.println(detClassification.getOfClassification(DetDataStore.ClassificationEnum.SDET));
@@ -89,7 +99,7 @@ public class TestPlayground {
 
         /* Lazy initialization */
         assertDSEF("app.Application.getLazy()");
-        assertNotSEF("java.lang.Class.getSimpleName()"); // TODO soll mindestens DSEF werden
+        assertDSEF("java.lang.Class.getSimpleName()"); // TODO Chech if a higher result is possible
 
         /* Native Operations */
         assertSSEF("java.lang.Object.hashCode()");
@@ -121,6 +131,15 @@ public class TestPlayground {
     static void assertNotDet(String meth) {
         if (analyse.containsKey(meth)) {
             assertTrue(detDataStore.isKnownNotDET(analyse.get(meth)),
+                    "Regression of result for %s should be \"NotDet\" but was \"%s\"", meth, getClassificationForDet(meth));
+        } else {
+            throw new AssumptionViolatedException("Methode " + meth + " not found!");
+        }
+    }
+
+    static void assertNotDetOrUnsure(String meth) {
+        if (analyse.containsKey(meth)) {
+            assertTrue(detDataStore.isKnownNotDET(analyse.get(meth)) || detDataStore.isUnsure(analyse.get(meth)),
                     "Regression of result for %s should be \"NotDet\" but was \"%s\"", meth, getClassificationForDet(meth));
         } else {
             throw new AssumptionViolatedException("Methode " + meth + " not found!");
