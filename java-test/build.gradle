@@ -1,0 +1,31 @@
+plugins {
+    id 'java'
+}
+
+targetCompatibility = JavaVersion.VERSION_11
+sourceCompatibility = JavaVersion.VERSION_11
+
+group 'playground2'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+    flatDir {
+        dirs '../archunit-extention/build/libs'
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'com.tngtech.archunit:archunit-junit5:0.22.0'
+    testImplementation 'net.jqwik:jqwik:1.6.1'
+    testImplementation 'org.assertj:assertj-core:3.21.0'
+    testImplementation project(':archunit-extension')
+}
+
+test {
+    useJUnitPlatform()
+//    testLogging {
+//        events "passed", "skipped", "failed"
+//    }
+}
