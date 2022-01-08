@@ -1,11 +1,6 @@
-package playground.sideeffectfree;
+package playground.pureness;
 
-import com.tngtech.archunit.core.domain.JavaClass;
-import com.tngtech.archunit.core.domain.JavaCodeUnit;
-import com.tngtech.archunit.core.domain.JavaField;
-import com.tngtech.archunit.core.domain.JavaFieldAccess;
-import com.tngtech.archunit.core.domain.JavaMethodCall;
-import com.tngtech.archunit.core.domain.JavaModifier;
+import com.tngtech.archunit.core.domain.*;
 import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
@@ -16,16 +11,16 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class SideEffectFreeArchCondition extends ArchCondition<JavaClass> {
+public class PurenessArchCondition extends ArchCondition<JavaClass> {
 
-    private final SefDataStore dataStore;
+    private final PureDataStore dataStore;
     private final HashMap<String, JavaCodeUnit> ANALYSE_HELPER;
     private final Set<JavaCodeUnit> INTERFACES = new HashSet<>();
 
-    public SideEffectFreeArchCondition(HashMap<String, JavaCodeUnit> analyseHelper, Object... args) {
+    public PurenessArchCondition(Object... args) {
         super("side effect free", args);
-        ANALYSE_HELPER = analyseHelper;
-        dataStore = new SefDataStore();
+        ANALYSE_HELPER = new HashMap<String, JavaCodeUnit>();
+        dataStore = new PureDataStore();
     }
 
     /**
@@ -33,32 +28,32 @@ public class SideEffectFreeArchCondition extends ArchCondition<JavaClass> {
      * the operations here and do the main processing in the @finish operation. Due to
      * performance reasons we do also some prechecks, so that we can classify some simple cases.
      *
-     * @param javaMethod      The AST element to analysze
+     * @param javaMethod      The AST element to analyze
      * @param conditionEvents input and output with the found issues.
      */
     private void collectAndPreClassify(JavaCodeUnit javaMethod, ConditionEvents conditionEvents) {
 
         ANALYSE_HELPER.put(javaMethod.getFullName(), javaMethod); // Used to perform sone assertions
 
-        /* ecentially classified by configured classification */
+        /* essentially classified by configured classification */
         if (dataStore.alreadyClassified(javaMethod)) {
             return;
         }
 
-        /* A operation which has no return parameters can not be SEF, because it is either changeing its parametes (call by reference)
+        /* A operation which has no return parameters can not be SEF, because it is either changing its parameters (call by reference)
          * or it can not do anything. so it is save to classify as not SEF */
         if (!javaMethod.isConstructor() && javaMethod.getRawReturnType().getFullName().equals("void")) {
             dataStore.classifyNotSEF(javaMethod);
             return;
         }
 
-        /* Natiove Operations can not be analyzed, so handle as NotSEF */
+        /* Native Operations can not be analyzed, so handle as NotSEF */
         if (javaMethod.getModifiers().contains(JavaModifier.NATIVE)) {
             dataStore.classifyNotSEF(javaMethod);
             return;
         }
 
-        /* Interfaces need special handling, because all its implementation needs to be SEf, so collect separatly */
+        /* Interfaces and abstract classes need special handling, because all its implementation needs to be SEf, so collect separately */
         if (javaMethod.getOwner().isInterface() || javaMethod.getModifiers().contains(JavaModifier.ABSTRACT)) {
             INTERFACES.add(javaMethod);
             dataStore.classifyUnsure(javaMethod);
@@ -66,49 +61,65 @@ public class SideEffectFreeArchCondition extends ArchCondition<JavaClass> {
         }
 
         // Wenn die Operation kein Constructor ist, darf sie nicht auf Properties schreiben
-        boolean strict = true;
+        PurenessClassification premilaryClassification = null;
         if (!javaMethod.isConstructor()) {
+            premilaryClassification = checkForFieldAccesses(javaMethod, conditionEvents);
 
-            JavaClass javaClass = javaMethod.getOwner();
-            Set<JavaField> setfields = javaMethod.getFieldAccesses().stream()
-                    .filter(fa -> fa.getAccessType().equals(JavaFieldAccess.AccessType.SET))
-                    .map(m -> m.getTarget().resolveField().orNull()).filter(Objects::nonNull)
-                    .collect(Collectors.toSet());
-            if (setfields.isEmpty()) {
-                strict = true;
-            } else if (setfields.stream().allMatch(a -> a.getAccessesToSelf().stream().allMatch(b -> b.getOrigin().equals(javaMethod)))) {
-                strict = false;
-            } else {
-                logViolation(conditionEvents, javaClass,
-                        javaMethod.getFullName() + " is writing to at least one property");
-                dataStore.classifyNotSEF(javaMethod);
+            if(premilaryClassification == null) {
                 return;
             }
+        } else {
+            // Construktoren sind sef, da sie das erstemal setzen
+            premilaryClassification = PurenessClassification.SSEF;
         }
+
 
         // Nun sind wir schonmal sicher, dass die Methoden nicht direkt auf ihre Properties schreiben.
 
         if (javaMethod.getMethodCallsFromSelf().isEmpty()) {
-            if (strict) {
-                dataStore.classifySSEF(javaMethod);
-            } else {
-                dataStore.classifyDSEF(javaMethod);
-            }
+                dataStore.classifyAs(javaMethod, premilaryClassification);
             return; // Wenn keine anderen Methoden aufgerufen werden, ist die Methode nun SEF
         }
 
-        // jetzt wissen wir, dass andere Methoden aufgerufen werden und die Classifizierung nur noch von den Methodenaufrufen abhängt.
+        // jetzt wissen wir, dass andere Methoden aufgerufen werden und die Klassifizierung nur noch von den Methodenaufrufen abhängt.
 
-        if (validateMethodCalls(javaMethod, conditionEvents, strict)) {
+        if (validateMethodCalls(javaMethod, conditionEvents, premilaryClassification)) {
             return;
         }
 
-        // Wenn wir bisher keine Klassifizirung gefunden haben, dann schaffen wir es noch nicht.
+        // Wenn wir bisher keine Klassifizierung gefunden haben, dann schaffen wir es noch nicht.
 
         dataStore.classifyUnsure(javaMethod);
     }
 
-    private boolean validateMethodCalls(JavaCodeUnit codeUnit, ConditionEvents conditionEvents, boolean isStrict) {
+    /**
+     *
+     * @param javaMethod
+     * @param conditionEvents
+     * @return
+     */
+    private PurenessClassification checkForFieldAccesses(JavaCodeUnit javaMethod, ConditionEvents conditionEvents) {
+
+        Set<JavaField> setfields = javaMethod.getFieldAccesses().stream()
+                .filter(fa -> fa.getAccessType().equals(JavaFieldAccess.AccessType.SET))
+                .map(m -> m.getTarget().resolveField().orNull()).filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        if (setfields.isEmpty()) {
+            return PurenessClassification.SSEF;
+        }
+
+        if (setfields.stream().allMatch(a -> a.getAccessesToSelf().stream().allMatch(b -> b.getOrigin().equals(javaMethod)))) {
+            return PurenessClassification.DSEF;
+        }
+
+         logViolation(conditionEvents, javaMethod.getOwner(),
+                    javaMethod.getFullName() + " is writing to at least one property");
+        dataStore.classifyNotSEF(javaMethod);
+        return null;
+    }
+
+    private boolean validateMethodCalls(JavaCodeUnit codeUnit, ConditionEvents conditionEvents, PurenessClassification premilaryClassification ) {
         Set<JavaMethodCall> callsToCheck = codeUnit.getMethodCallsFromSelf();
 
         if (callsToCheck.isEmpty()) {
@@ -126,22 +137,18 @@ public class SideEffectFreeArchCondition extends ArchCondition<JavaClass> {
                 return true;
             }
             if (dataStore.isKnownDSEF(call.getTarget().resolve())) {
-                isStrict = false;
+                premilaryClassification = PurenessClassification.DSEF;
             }
         }
 
-        if (isStrict) {
-            dataStore.classifySSEF(codeUnit);
-        } else {
-            dataStore.classifyDSEF(codeUnit);
-        }
+        dataStore.classifyAs(codeUnit, premilaryClassification);
 
         return true;
     }
 
     private void logViolation(ConditionEvents conditionEvents, JavaClass owner, String meldung) {
 
-        if (owner.getFullName().startsWith("app.")) {
+        if (owner.getFullName().startsWith("hamburg.")) {
             conditionEvents.add(SimpleConditionEvent.violated(owner, meldung));
         }
     }
@@ -151,20 +158,20 @@ public class SideEffectFreeArchCondition extends ArchCondition<JavaClass> {
         System.out.println(dataStore.info() + " Anzahl offene Interfaces: " + INTERFACES.size());
         boolean rerun = true;
         while (rerun) {
-            Set<JavaCodeUnit> unchecked = dataStore.getClMethods(SideEffectFreeClassification.UNCHECKED);
+            Set<JavaCodeUnit> unchecked = dataStore.getAllMethodsOfClassification(PurenessClassification.UNCHECKED);
             rerun = !unchecked.isEmpty();
             for (JavaCodeUnit meth : unchecked) {
                 collectAndPreClassify(meth, conditionEvents);
             }
 
-            for (JavaCodeUnit meth : dataStore.getClMethods(SideEffectFreeClassification.UNSURE)) {
-                rerun |= validateMethodCalls(meth, conditionEvents, true);
+            for (JavaCodeUnit meth : dataStore.getAllMethodsOfClassification(PurenessClassification.UNSURE)) {
+                rerun |= validateMethodCalls(meth, conditionEvents, PurenessClassification.SSEF);
             }
 
             rerun |= checkInterfaces();
             System.out.println(dataStore.info() + " Anzahl offene Interfaces: " + INTERFACES.size());
         }
-        dataStore.getClMethods(SideEffectFreeClassification.UNSURE).forEach(un -> logUnsure(conditionEvents, un.getOwner(), un));
+        dataStore.getAllMethodsOfClassification(PurenessClassification.UNSURE).forEach(un -> logUnsure(conditionEvents, un.getOwner(), un));
     }
 
     private void logUnsure(ConditionEvents conditionEvents, JavaClass owner, JavaCodeUnit meth) {
@@ -198,7 +205,7 @@ public class SideEffectFreeArchCondition extends ArchCondition<JavaClass> {
         javaClass.getMethods().forEach(javaMethod -> collectAndPreClassify(javaMethod, conditionEvents));
     }
 
-    public SefDataStore getDataStore() {
+    public PureDataStore getDataStore() {
         return dataStore;
     }
 }

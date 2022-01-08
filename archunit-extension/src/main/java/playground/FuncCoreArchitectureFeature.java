@@ -7,6 +7,7 @@ import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.EvaluationResult;
 import com.tngtech.archunit.lang.Priority;
 import com.tngtech.archunit.thirdparty.com.google.common.base.Joiner;
+import playground.pureness.PurenessArchCondition;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Set;
 
 import static com.tngtech.archunit.PublicAPI.Usage.ACCESS;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static java.lang.System.lineSeparator;
 
 public final class FuncCoreArchitectureFeature {
@@ -135,7 +137,12 @@ public final class FuncCoreArchitectureFeature {
 
         @Override
         public EvaluationResult evaluate(JavaClasses classes) {
-            return new EvaluationResult(this, Priority.MEDIUM);
+            EvaluationResult result =  new EvaluationResult(this, Priority.MEDIUM);
+            result.add(classes().that().resideInAnyPackage(corePackageIdentifiers).should().onlyDependOnClassesThat().resideOutsideOfPackages(shellPackageIdentifiers).evaluate(classes));
+            PurenessArchCondition condition = new PurenessArchCondition();
+            //todo parameterize Condition
+            result.add(classes().that().resideInAnyPackage(corePackageIdentifiers).should(condition).evaluate(classes));
+            return result;
         }
 
         @Override

@@ -27,15 +27,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class TestPlayground {
 
     private static HashMap<String, JavaCodeUnit> analyse = new HashMap<>();
-    private static final SefDataStore sefDataStore = new SefDataStore();
-    private static final DetDataStore detDataStore = new DetDataStore();
     private static final Formatter formatter = new Formatter();
 
-    private static final ArchCondition<? super JavaClass> BE_SEF
-            = new SideEffectFreeArchCondition(analyse, sefDataStore);
+    private static final SideEffectFreeArchCondition BE_SEF
+            = new SideEffectFreeArchCondition(analyse);
 
-    private static final ArchCondition<? super JavaClass> BE_DET
-            = new DeterministicArchCondition(analyse, detDataStore);
+    private static final DeterministicArchCondition BE_DET
+            = new DeterministicArchCondition(analyse);
 
     @ArchTest
     public static void test_det(JavaClasses classes) {
@@ -119,7 +117,7 @@ public class TestPlayground {
 
     static void assertNotSEF(String meth) {
         if (analyse.containsKey(meth)) {
-            assertTrue(sefDataStore.isKnownNotSEF(analyse.get(meth)),
+            assertTrue(BE_SEF.getDataStore().isKnownNotSEF(analyse.get(meth)),
                     "Regression of result for %s should be \"NotSEF\" but was \"%s\"", meth, getClassificationForSef(meth));
         } else {
             throw new AssumptionViolatedException("Methode " + meth + " not found!");
@@ -128,7 +126,7 @@ public class TestPlayground {
 
     static void assertNotDet(String meth) {
         if (analyse.containsKey(meth)) {
-            assertTrue(detDataStore.isKnownNotDET(analyse.get(meth)),
+            assertTrue(BE_DET.getDataStore().isKnownNotDET(analyse.get(meth)),
                     "Regression of result for %s should be \"NotDet\" but was \"%s\"", meth, getClassificationForDet(meth));
         } else {
             throw new AssumptionViolatedException("Methode " + meth + " not found!");
@@ -137,7 +135,7 @@ public class TestPlayground {
 
     static void assertNotDetOrUnsure(String meth) {
         if (analyse.containsKey(meth)) {
-            assertTrue(detDataStore.isKnownNotDET(analyse.get(meth)) || detDataStore.isUnsure(analyse.get(meth)),
+            assertTrue(BE_DET.getDataStore().isKnownNotDET(analyse.get(meth)) || BE_DET.getDataStore().isUnsure(analyse.get(meth)),
                     "Regression of result for %s should be \"NotDet\" but was \"%s\"", meth, getClassificationForDet(meth));
         } else {
             throw new AssumptionViolatedException("Methode " + meth + " not found!");
@@ -146,7 +144,7 @@ public class TestPlayground {
 
     static void assertSDet(String meth) {
         if (analyse.containsKey(meth)) {
-            assertTrue(detDataStore.isKnownSDET(analyse.get(meth)),
+            assertTrue(BE_DET.getDataStore().isKnownSDET(analyse.get(meth)),
                     "Regression of result for %s should be \"SDET\" but was \"%s\"", meth, getClassificationForDet(meth));
         } else {
             throw new AssumptionViolatedException("Methode " + meth + " not found!");
@@ -155,7 +153,7 @@ public class TestPlayground {
 
     static void assertSSEF(String meth) {
         if (analyse.containsKey(meth)) {
-            assertTrue(sefDataStore.isKnownSSEF(analyse.get(meth)),
+            assertTrue(BE_SEF.getDataStore().isKnownSSEF(analyse.get(meth)),
                     "Regression of result for %s should be \"SSEF\" but was \"%s\"", meth, getClassificationForSef(meth));
         } else {
             throw new AssumptionViolatedException("Methode " + meth + " not found!");
@@ -164,7 +162,7 @@ public class TestPlayground {
 
     static void assertDSEF(String meth) {
         if (analyse.containsKey(meth)) {
-            assertTrue(sefDataStore.isKnownDSEF(analyse.get(meth)),
+            assertTrue(BE_SEF.getDataStore().isKnownDSEF(analyse.get(meth)),
                     "Regression of result for %s should be \"DSEF\" but was \"%s\"", meth, getClassificationForSef(meth));
         } else {
             throw new AssumptionViolatedException("Methode " + meth + " not found!");
@@ -173,7 +171,7 @@ public class TestPlayground {
 
     static void assertUnsure(String meth) {
         if (analyse.containsKey(meth)) {
-            assertTrue(sefDataStore.isUnsure(analyse.get(meth)),
+            assertTrue(BE_SEF.getDataStore().isUnsure(analyse.get(meth)),
                     "Regression of result for %s should be \"Unsure\" but was \"%s\"", meth, getClassificationForSef(meth));
         } else {
             throw new AssumptionViolatedException("Methode " + meth + " not found!");
@@ -182,7 +180,7 @@ public class TestPlayground {
 
     static String getClassificationForSef(String javaMethod) {
         if (analyse.containsKey(javaMethod)) {
-            return sefDataStore.getClassificationFor(analyse.get(javaMethod));
+            return BE_SEF.getDataStore().getClassificationFor(analyse.get(javaMethod));
         } else {
             return "NOT FOUND";
         }
@@ -190,7 +188,7 @@ public class TestPlayground {
 
     static String getClassificationForDet(String javaMethod) {
         if (analyse.containsKey(javaMethod)) {
-            return detDataStore.getClassificationFor(analyse.get(javaMethod));
+            return BE_DET.getDataStore().getClassificationFor(analyse.get(javaMethod));
         } else {
             return "NOT FOUND";
         }

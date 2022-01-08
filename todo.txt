@@ -1,0 +1,9 @@
+- Seiteneffektfreiheit schärfen
+   - Stream API hat sowohl SEF und notSEF-Methoden
+   - Setter die neue Objekte erzeugen
+- Einbinden der definierten Listen
+    - Zur Zeit mit Packages -> Wie mit Methoden umgehen
+    - Classen-Condition -> Machen aber Methodentests -> Ist das ein gutes Design??
+          - Methods and Classes trennen?
+          - Oder begründen, warum das so gut und richtig ist
+    - Listen sollen die ArchUnit Notation für Packages und Subpackages unterstützen

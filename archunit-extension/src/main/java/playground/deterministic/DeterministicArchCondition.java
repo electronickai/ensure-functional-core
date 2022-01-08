@@ -19,10 +19,10 @@ public class DeterministicArchCondition extends ArchCondition<JavaClass> {
     private final HashMap<String, JavaCodeUnit> ANALYSE_HELPER;
     private final Set<JavaCodeUnit> INFERFACES = new HashSet<>();
 
-    public DeterministicArchCondition(HashMap<String, JavaCodeUnit> analyseHelper, DetDataStore datastore, Object... args) {
+    public DeterministicArchCondition(HashMap<String, JavaCodeUnit> analyseHelper, Object... args) {
         super("side effect free", args);
         ANALYSE_HELPER = analyseHelper;
-        dataStore = datastore;
+        dataStore = new DetDataStore();
     }
 
     /**
@@ -146,6 +146,10 @@ public class DeterministicArchCondition extends ArchCondition<JavaClass> {
     public void check(JavaClass javaClass, ConditionEvents conditionEvents) {
         javaClass.getConstructors().forEach(javaConstructor -> collectAndPreClassify(javaConstructor, conditionEvents));
         javaClass.getMethods().forEach(javaMethod -> collectAndPreClassify(javaMethod, conditionEvents));
+    }
+
+    public DetDataStore getDataStore() {
+        return dataStore;
     }
 }
 
