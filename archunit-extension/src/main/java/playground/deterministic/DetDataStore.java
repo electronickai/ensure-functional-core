@@ -2,7 +2,11 @@ package playground.deterministic;
 
 import com.tngtech.archunit.core.domain.JavaCodeUnit;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Formatter;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class DetDataStore {

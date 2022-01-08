@@ -46,12 +46,12 @@ public final class FuncCoreArchitectureFeature {
         private String[] corePackageIdentifiers = new String[0];
 
         private boolean usePredefinedCatalog = true;
-        private final Set<String> deterministicPackages = new LinkedHashSet<>();
-        private final Set<String> nonDeterministicPackages = new LinkedHashSet<>();
+        private Set<String> deterministicPackages = new LinkedHashSet<>();
+        private Set<String> nonDeterministicPackages = new LinkedHashSet<>();
 
-        private final Set<String> nonSideEffectFreePackages = new LinkedHashSet<>();
-        private final Set<String> domainSpecificSideEffectFreePackages = new LinkedHashSet<>();
-        private final Set<String> strictlySideEffectFreePackages = new LinkedHashSet<>();
+        private Set<String> nonSideEffectFreePackages = new LinkedHashSet<>();
+        private Set<String> domainSpecificSideEffectFreePackages = new LinkedHashSet<>();
+        private Set<String> strictlySideEffectFreePackages = new LinkedHashSet<>();
 
         private final Optional<String> overriddenDescription = Optional.empty();
 
