@@ -11,8 +11,7 @@ import com.tngtech.archunit.lang.EvaluationResult;
 import org.junit.AssumptionViolatedException;
 import playground.deterministic.DetDataStore;
 import playground.deterministic.DeterministicArchCondition;
-import playground.sideeffectfree.SefDataStore;
-import playground.sideeffectfree.SideEffectFreeArchCondition;
+import playground.pureness.PurenessArchCondition;
 
 import java.util.Formatter;
 import java.util.HashMap;
@@ -29,8 +28,8 @@ public class TestPlayground {
     private static HashMap<String, JavaCodeUnit> analyse = new HashMap<>();
     private static final Formatter formatter = new Formatter();
 
-    private static final SideEffectFreeArchCondition BE_SEF
-            = new SideEffectFreeArchCondition(analyse);
+    private static final PurenessArchCondition BE_SEF
+            = new PurenessArchCondition(analyse);
 
     private static final DeterministicArchCondition BE_DET
             = new DeterministicArchCondition(analyse);
