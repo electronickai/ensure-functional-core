@@ -2,7 +2,11 @@ package playground.pureness;
 
 import com.tngtech.archunit.core.domain.JavaCodeUnit;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Formatter;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class PureDataStore {
@@ -19,22 +23,20 @@ public class PureDataStore {
      * @param codeUnit CodeUnit fo witch the default is calculated
      * @return the current classification of the codeunit
      */
-    private PurenessClassification preclassifyIfAbsend(JavaCodeUnit codeUnit) {
-            if (DEF_SSEF_API.stream().anyMatch(a -> codeUnit.getFullName().startsWith(a))) {
-                return PurenessClassification.SSEF;
-            } else
-            if (DEF_DSEF_API.stream().anyMatch(a -> codeUnit.getFullName().startsWith(a))) {
-                return PurenessClassification.DSEF;
-            } else
-            if (NOT_SEF_API.stream().anyMatch(a -> codeUnit.getFullName().startsWith(a))) {
-                return PurenessClassification.NOT_SEF;
-            } else {
-                return PurenessClassification.UNCHECKED;
-            }
+    private PurenessClassification preclassifyIfAbsent(JavaCodeUnit codeUnit) {
+        if (DEF_SSEF_API.stream().anyMatch(a -> codeUnit.getFullName().startsWith(a))) {
+            return PurenessClassification.SSEF;
+        } else if (DEF_DSEF_API.stream().anyMatch(a -> codeUnit.getFullName().startsWith(a))) {
+            return PurenessClassification.DSEF;
+        } else if (NOT_SEF_API.stream().anyMatch(a -> codeUnit.getFullName().startsWith(a))) {
+            return PurenessClassification.NOT_SEF;
+        } else {
+            return PurenessClassification.UNCHECKED;
+        }
     }
 
     private PurenessClassification getClassification(JavaCodeUnit codeUnit) {
-        return classification.computeIfAbsent(codeUnit, this::preclassifyIfAbsend);
+        return classification.computeIfAbsent(codeUnit, this::preclassifyIfAbsent);
     }
 
     public boolean isKnownSSEF(JavaCodeUnit codeUnit) {
