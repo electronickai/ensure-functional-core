@@ -1,6 +1,11 @@
 package playground.pureness;
 
-import com.tngtech.archunit.core.domain.*;
+import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.core.domain.JavaCodeUnit;
+import com.tngtech.archunit.core.domain.JavaField;
+import com.tngtech.archunit.core.domain.JavaFieldAccess;
+import com.tngtech.archunit.core.domain.JavaMethodCall;
+import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
@@ -19,7 +24,7 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
 
     public PurenessArchCondition(Object... args) {
         super("side effect free", args);
-        ANALYSE_HELPER = new HashMap<String, JavaCodeUnit>();
+        ANALYSE_HELPER = new HashMap<>();
         dataStore = new PureDataStore();
     }
 
@@ -33,16 +38,19 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
      */
     private void collectAndPreClassify(JavaCodeUnit javaMethod, ConditionEvents conditionEvents) {
 
-        ANALYSE_HELPER.put(javaMethod.getFullName(), javaMethod); // Used to perform sone assertions
+        ANALYSE_HELPER.put(javaMethod.getFullName(), javaMethod); // Used to perform some assertions
 
         /* essentially classified by configured classification */
         if (dataStore.alreadyClassified(javaMethod)) {
             return;
         }
 
-        /* A operation which has no return parameters can not be SEF, because it is either changing its parameters (call by reference)
-         * or it can not do anything. so it is save to classify as not SEF */
-        if (!javaMethod.isConstructor() && javaMethod.getRawReturnType().getFullName().equals("void")) {
+        /* A operation which has no return parameters can not be SEF, because it is either changing its
+         * parameters (call by reference) , its local state, or it cannot do anything. so it is safe to classify as
+         * not SEF. However, it may be side effect free in case there may be some exception to be thrown as long as
+         * it isn't thrown at runtime. As we can't check the runtime behaviour here, we don't classify strictly as
+         * notSEF in this case for pragmatic reasons */
+        if (!javaMethod.isConstructor() && javaMethod.getRawReturnType().getFullName().equals("void") && !throwsException(javaMethod)) {
             dataStore.classifyNotSEF(javaMethod);
             return;
         }
@@ -61,7 +69,7 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
         }
 
         // Wenn die Operation kein Constructor ist, darf sie nicht auf Properties schreiben
-        PurenessClassification premilaryClassification = null;
+        PurenessClassification premilaryClassification;
         if (!javaMethod.isConstructor()) {
             premilaryClassification = checkForFieldAccesses(javaMethod, conditionEvents);
 
@@ -69,7 +77,7 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
                 return;
             }
         } else {
-            // Construktoren sind sef, da sie das erstemal setzen
+            // Construktoren sind sef, da sie das erste Mal setzen
             premilaryClassification = PurenessClassification.SSEF;
         }
 
@@ -92,8 +100,13 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
         dataStore.classifyUnsure(javaMethod);
     }
 
+    private boolean throwsException(JavaCodeUnit javaMethod) {
+        return javaMethod.getConstructorCallsFromSelf()
+                .stream()
+                .anyMatch(javaConstructorCall -> javaConstructorCall.getTargetOwner().isAssignableTo(Exception.class));
+    }
+
     /**
-     *
      * @param javaMethod
      * @param conditionEvents
      * @return
@@ -102,7 +115,7 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
 
         Set<JavaField> setfields = javaMethod.getFieldAccesses().stream()
                 .filter(fa -> fa.getAccessType().equals(JavaFieldAccess.AccessType.SET))
-                .map(m -> m.getTarget().resolveField().orNull()).filter(Objects::nonNull)
+                .map(m -> m.getTarget().resolveField().orElse(null)).filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
         if (setfields.isEmpty()) {
@@ -131,7 +144,7 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
             if (dataStore.isUnsure(call.getTarget().resolve())) {
                 return false;
             }
-            if (dataStore.isKnownNotSEF(call.getTarget().resolve())) {
+            if (dataStore.isKnownNotSEF(call.getTarget().resolve()) && isVisibleToOuterScope(call, codeUnit)) {
                 logViolation(conditionEvents, codeUnit.getOwner(), codeUnit.getFullName() + " calls not SEF method ( one of" + call.getTarget() + ")");
                 dataStore.classifyNotSEF(codeUnit);
                 return true;
@@ -144,6 +157,14 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
         dataStore.classifyAs(codeUnit, premilaryClassification);
 
         return true;
+    }
+
+    private boolean isVisibleToOuterScope(JavaMethodCall call, JavaCodeUnit codeUnit) {
+        Set<JavaClass> internalInstantiations = codeUnit.getConstructorCallsFromSelf()
+                .stream()
+                .map(constructorCall -> constructorCall.getTarget().getOwner())
+                .collect(Collectors.toUnmodifiableSet());
+        return !internalInstantiations.contains(call.getTarget().getOwner());
     }
 
     private void logViolation(ConditionEvents conditionEvents, JavaClass owner, String meldung) {

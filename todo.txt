@@ -7,3 +7,22 @@
           - Methods and Classes trennen?
           - Oder begründen, warum das so gut und richtig ist
     - Listen sollen die ArchUnit Notation für Packages und Subpackages unterstützen
+- Wie gehen wir mit void-Methoden um, die innerhalb einer Call-Hierarchie prüfen, ob eine Exception geworfen werden müsste (Bsp. Rating.valueOf(String)?
+
+- hamburg.kaischmidt.functionalcoredemo.core.domain.Agenda.addNewTalk(java.lang.String) calls not SEF method ( one oftarget{java.lang.String.format(java.lang.String, [Ljava.lang.Object;)})
+- hamburg.kaischmidt.functionalcoredemo.core.domain.Agenda.addRatingToTalk(java.lang.String, hamburg.kaischmidt.functionalcoredemo.core.domain.Rating) calls not SEF method ( one oftarget{java.lang.String.format(java.lang.String, [Ljava.lang.Object;)})
+- hamburg.kaischmidt.functionalcoredemo.core.domain.Agenda.applyRating(java.lang.String, hamburg.kaischmidt.functionalcoredemo.core.domain.Rating) calls not SEF method ( one oftarget{java.lang.String.format(java.lang.String, [Ljava.lang.Object;)})
+- hamburg.kaischmidt.functionalcoredemo.core.domain.Agenda.toggleStatus(java.lang.String) calls not SEF method ( one oftarget{java.lang.String.format(java.lang.String, [Ljava.lang.Object;)})
+  --> why is format not free of side effects?
+  ----> Formatter.format may throw an exception in case the formatter is already closed (may be considered in the code)
+        AND has an internal field about the last exception that can be accessed via the method ioException.
+  ----> However, String.format instantiate the formatter itself. As the formatter instance isn't visible to the caller, the call may be considered as side effect free (although it may throw an exception?)
+- hamburg.kaischmidt.functionalcoredemo.core.domain.Rating.valueOf(java.lang.String) calls not SEF method ( one oftarget{java.lang.Enum.valueOf(java.lang.Class, java.lang.String)})
+  --> why is valueOf not free of side effects?
+  ----> |"No enum constant " + enumClass.getCanonicalName() + "." + name| is translated into StringBuilder.append and StringBuilder.toString methods in byte code. StringBuilder.append isn't classified during processing but StringBuilder.toString considered to be notSEF
+  ----> StringBuilder.toString is considered to be notSEF because java.lang.StringUTF16.newString([B, int, int) is considered to be not SEF
+  ------> StringUTF16.newString is cosidered to be notSEF because java.lang.StringUTF16.compress([B, int, int) is considered to be not SEF
+  ------> StringUTF16.compress is cosidered to be notSEF because java.lang.StringUTF16.checkBoundsOffCount(int, int, [B) is considered to be not SEF
+  ------> StringUTF16.checkBoundsOffCount is cosidered to be notSEF because because it is void and calls another method that throws an exception after a boundary check (may be considered in the code)
+- hamburg.kaischmidt.functionalcoredemo.core.presentation.TalkRepresentation.mapFields(hamburg.kaischmidt.functionalcoredemo.core.domain.Talk) calls not SEF method ( one oftarget{hamburg.kaischmidt.functionalcoredemo.core.presentation.TalkRepresentation.setTopic(java.lang.String)})
+  --> Setter within initialization of a new object
