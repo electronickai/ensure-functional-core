@@ -7,13 +7,16 @@ import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.EvaluationResult;
 import com.tngtech.archunit.lang.Priority;
 import com.tngtech.archunit.thirdparty.com.google.common.base.Joiner;
+import playground.pureness.PurenessArchCondition;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
 import static com.tngtech.archunit.PublicAPI.Usage.ACCESS;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static java.lang.System.lineSeparator;
 
 public final class FuncCoreArchitectureFeature {
@@ -32,7 +35,7 @@ public final class FuncCoreArchitectureFeature {
      * .wherePackage("java.lang.invoke..").isConsideredNonDeterministic()
      * .wherePackage("java.util.stream..").isConsideredStrictlySideEffectFree()
      * </code></pre>
-     * NOTE: The packages like java.util.concurrent and java.lan.invoke (and others) would already be declared as non deterministic in a predefined catalog. This catalog could be used by either omitting wherePredefinedCatalogIsExcluded() or by explicitly declaring wherePredefinedCatalogIsUsed()
+     * NOTE: The packages like java.util.concurrent and java.lang.invoke (and others) would already be declared as non-deterministic in a predefined catalog. This catalog could be used by either omitting wherePredefinedCatalogIsExcluded() or by explicitly declaring wherePredefinedCatalogIsUsed()
      *
      * @return An {@link ArchRule} enforcing the specified functional core architecture
      **/
@@ -119,8 +122,8 @@ public final class FuncCoreArchitectureFeature {
             }
 
             List<String> lines = new ArrayList<>();
-            lines.add("Functional Core Architecture with core in " + corePackageIdentifiers + " and shell in " + shellPackageIdentifiers);
-            lines.add(usePredefinedCatalog ? " using predifined non deterministic packages" : "using only customized non deterministic packages");
+            lines.add("Functional Core Architecture with core in " + Arrays.toString(corePackageIdentifiers) + " and shell in " + Arrays.toString(shellPackageIdentifiers));
+            lines.add(usePredefinedCatalog ? " using predefined non deterministic packages" : "using only customized non deterministic packages");
             if (!nonDeterministicPackages.isEmpty()) {
                 lines.add("with the following additionally defined non deterministic packages");
                 lines.addAll(nonDeterministicPackages);
@@ -135,7 +138,12 @@ public final class FuncCoreArchitectureFeature {
 
         @Override
         public EvaluationResult evaluate(JavaClasses classes) {
-            return new EvaluationResult(this, Priority.MEDIUM);
+            EvaluationResult result =  new EvaluationResult(this, Priority.MEDIUM);
+            result.add(classes().that().resideInAnyPackage(corePackageIdentifiers).should().onlyDependOnClassesThat().resideOutsideOfPackages(shellPackageIdentifiers).evaluate(classes));
+            PurenessArchCondition condition = new PurenessArchCondition();
+            //todo parameterize Condition
+            result.add(classes().that().resideInAnyPackage(corePackageIdentifiers).should(condition).evaluate(classes));
+            return result;
         }
 
         @Override
@@ -154,7 +162,7 @@ public final class FuncCoreArchitectureFeature {
         }
 
         public final class PackageClassification {
-            private final String packageIdentifier; //TODO: Use package syntax / PackageMatcher
+            private final String packageIdentifier;
 
             private PackageClassification(String packageIdentifier) {
                 this.packageIdentifier = packageIdentifier;
