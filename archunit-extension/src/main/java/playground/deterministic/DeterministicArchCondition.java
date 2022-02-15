@@ -17,7 +17,7 @@ public class DeterministicArchCondition extends ArchCondition<JavaClass> {
 
     private final DetDataStore dataStore;
     private final HashMap<String, JavaCodeUnit> ANALYSE_HELPER;
-    private final Set<JavaCodeUnit> INFERFACES = new HashSet<>();
+    private final Set<JavaCodeUnit> INTERFACES = new HashSet<>();
 
     public DeterministicArchCondition(HashMap<String, JavaCodeUnit> analyseHelper, Object... args) {
         super("side effect free", args);
@@ -98,7 +98,7 @@ public class DeterministicArchCondition extends ArchCondition<JavaClass> {
 
     @Override
     public void finish(ConditionEvents conditionEvents) {
-        System.out.println(dataStore.info() + " Anzahl offene Interfaces: " + INFERFACES.size());
+        System.out.println(dataStore.info() + " Anzahl offene Interfaces: " + INTERFACES.size());
         boolean rerun = true;
         while (rerun) {
             Set<JavaCodeUnit> unchecked = dataStore.getClMethods(DeterministicClassification.UNCHECKED);
@@ -112,7 +112,7 @@ public class DeterministicArchCondition extends ArchCondition<JavaClass> {
             }
 
             rerun |= checkInterfaces();
-            System.out.println(dataStore.info() + " Anzahl offene Interfaces: " + INFERFACES.size());
+            System.out.println(dataStore.info() + " Anzahl offene Interfaces: " + INTERFACES.size());
         }
         dataStore.getClMethods(DeterministicClassification.UNSURE).forEach(un -> logUnsure(conditionEvents, un.getOwner(), un));
     }
@@ -126,7 +126,7 @@ public class DeterministicArchCondition extends ArchCondition<JavaClass> {
 
     private boolean checkInterfaces() {
         Set<JavaCodeUnit> toRemove = new HashSet<>();
-        for (JavaCodeUnit anInterface : INFERFACES) {
+        for (JavaCodeUnit anInterface : INTERFACES) {
             if (anInterface.getOwner().getAllSubclasses().stream().allMatch(cl -> cl.getAllMethods().stream().filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes())).allMatch(dataStore::isKnownSDET))) {
                 dataStore.classifySDET(anInterface);
                 toRemove.add(anInterface);
@@ -139,7 +139,7 @@ public class DeterministicArchCondition extends ArchCondition<JavaClass> {
 
             }
         }
-        return INFERFACES.removeAll(toRemove);
+        return INTERFACES.removeAll(toRemove);
     }
 
     @Override

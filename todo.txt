@@ -21,8 +21,8 @@
   --> why is valueOf not free of side effects?
   ----> |"No enum constant " + enumClass.getCanonicalName() + "." + name| is translated into StringBuilder.append and StringBuilder.toString methods in byte code. StringBuilder.append isn't classified during processing but StringBuilder.toString considered to be notSEF
   ----> StringBuilder.toString is considered to be notSEF because java.lang.StringUTF16.newString([B, int, int) is considered to be not SEF
-  ------> StringUTF16.newString is cosidered to be notSEF because java.lang.StringUTF16.compress([B, int, int) is considered to be not SEF
-  ------> StringUTF16.compress is cosidered to be notSEF because java.lang.StringUTF16.checkBoundsOffCount(int, int, [B) is considered to be not SEF
-  ------> StringUTF16.checkBoundsOffCount is cosidered to be notSEF because because it is void and calls another method that throws an exception after a boundary check (may be considered in the code)
+  ------> StringUTF16.newString is considered to be notSEF because java.lang.StringUTF16.compress([B, int, int) is considered to be not SEF
+  ------> StringUTF16.compress is considered to be notSEF because java.lang.StringUTF16.checkBoundsOffCount(int, int, [B) is considered to be not SEF
+  ------> StringUTF16.checkBoundsOffCount is cosidered to be notSEF because because it is void and calls another method that throws an exception after a boundary check (may have to be considered in the code)
 - hamburg.kaischmidt.functionalcoredemo.core.presentation.TalkRepresentation.mapFields(hamburg.kaischmidt.functionalcoredemo.core.domain.Talk) calls not SEF method ( one oftarget{hamburg.kaischmidt.functionalcoredemo.core.presentation.TalkRepresentation.setTopic(java.lang.String)})
   --> Setter within initialization of a new object

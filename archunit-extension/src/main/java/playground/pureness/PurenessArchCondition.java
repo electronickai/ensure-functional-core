@@ -45,12 +45,7 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
             return;
         }
 
-        /* A operation which has no return parameters can not be SEF, because it is either changing its
-         * parameters (call by reference) , its local state, or it cannot do anything. so it is safe to classify as
-         * not SEF. However, it may be side effect free in case there may be some exception to be thrown as long as
-         * it isn't thrown at runtime. As we can't check the runtime behaviour here, we don't classify strictly as
-         * notSEF in this case for pragmatic reasons */
-        if (!javaMethod.isConstructor() && javaMethod.getRawReturnType().getFullName().equals("void") && !throwsException(javaMethod)) {
+        if (checkVoidMethodAsNotSef(javaMethod)) {
             dataStore.classifyNotSEF(javaMethod);
             return;
         }
@@ -81,23 +76,38 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
             premilaryClassification = PurenessClassification.SSEF;
         }
 
-
         // Nun sind wir schonmal sicher, dass die Methoden nicht direkt auf ihre Properties schreiben.
-
         if (javaMethod.getMethodCallsFromSelf().isEmpty()) {
                 dataStore.classifyAs(javaMethod, premilaryClassification);
             return; // Wenn keine anderen Methoden aufgerufen werden, ist die Methode nun SEF
         }
 
         // jetzt wissen wir, dass andere Methoden aufgerufen werden und die Klassifizierung nur noch von den Methodenaufrufen abhängt.
-
         if (validateMethodCalls(javaMethod, conditionEvents, premilaryClassification)) {
             return;
         }
 
         // Wenn wir bisher keine Klassifizierung gefunden haben, dann schaffen wir es noch nicht.
-
         dataStore.classifyUnsure(javaMethod);
+    }
+
+    /**
+     * An operation which has no return parameters can not be SEF, because it is either changing its
+     * parameters (call by reference), its local state, or it cannot do anything. so it is safe to classify as
+     * not SEF. However, it may be considered as side effect free in case there may be some exception to be thrown as
+     * long as it isn't thrown at runtime. As we can't check the runtime behaviour here, this decision is escalated to
+     * the user. The behaviour can be configured with the option exceptionsConsideredAsSef. AS a user
+     * you could also be quite strict, considering exceptions to be a side effect but preclassify the methods you
+     * intentionally want to be considered as Side effect free.
+     * Constructors omit their return type but should at least be designed to be side effect free.
+     * *
+     *
+     * @param javaMethod the method to be checked
+     * @return true if the method is considered to be not free of side effects, false otherwise
+     */
+    private boolean checkVoidMethodAsNotSef(JavaCodeUnit javaMethod) {
+        return !javaMethod.isConstructor() &&
+                javaMethod.getRawReturnType().getFullName().equals("void");
     }
 
     private boolean throwsException(JavaCodeUnit javaMethod) {
@@ -177,22 +187,32 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
     @Override
     public void finish(ConditionEvents conditionEvents) {
         System.out.println(dataStore.info() + " Anzahl offene Interfaces: " + INTERFACES.size());
-        boolean rerun = true;
-        while (rerun) {
-            Set<JavaCodeUnit> unchecked = dataStore.getAllMethodsOfClassification(PurenessClassification.UNCHECKED);
-            rerun = !unchecked.isEmpty();
-            for (JavaCodeUnit meth : unchecked) {
-                collectAndPreClassify(meth, conditionEvents);
-            }
-
-            for (JavaCodeUnit meth : dataStore.getAllMethodsOfClassification(PurenessClassification.UNSURE)) {
-                rerun |= validateMethodCalls(meth, conditionEvents, PurenessClassification.SSEF);
-            }
-
-            rerun |= checkInterfaces();
+        boolean hasChanged = true;
+        while (hasChanged) {
+            hasChanged = applyPropagationRules(conditionEvents);
+            //TODO KSC 14.02.22: Use a logger
             System.out.println(dataStore.info() + " Anzahl offene Interfaces: " + INTERFACES.size());
         }
         dataStore.getAllMethodsOfClassification(PurenessClassification.UNSURE).forEach(un -> logUnsure(conditionEvents, un.getOwner(), un));
+    }
+
+    private boolean applyPropagationRules(ConditionEvents conditionEvents) {
+
+        boolean rerun;
+        Set<JavaCodeUnit> unchecked = dataStore.getAllMethodsOfClassification(PurenessClassification.UNCHECKED);
+
+        rerun = !unchecked.isEmpty();
+        //TODO KSC 15.02.22: Check whether there really are any unchecked code units
+        for (JavaCodeUnit meth : unchecked) {
+            collectAndPreClassify(meth, conditionEvents);
+        }
+
+        for (JavaCodeUnit meth : dataStore.getAllMethodsOfClassification(PurenessClassification.UNSURE)) {
+            rerun |= validateMethodCalls(meth, conditionEvents, PurenessClassification.SSEF);
+        }
+
+        rerun |= checkInterfaces();
+        return rerun;
     }
 
     private void logUnsure(ConditionEvents conditionEvents, JavaClass owner, JavaCodeUnit meth) {
@@ -222,6 +242,7 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
 
     @Override
     public void check(JavaClass javaClass, ConditionEvents conditionEvents) {
+        //TODO KSC 14.02.22: Check whether getCodeUnits would include constructor calls and code units because then the calls could be joined
         javaClass.getConstructors().forEach(javaConstructor -> collectAndPreClassify(javaConstructor, conditionEvents));
         javaClass.getMethods().forEach(javaMethod -> collectAndPreClassify(javaMethod, conditionEvents));
     }

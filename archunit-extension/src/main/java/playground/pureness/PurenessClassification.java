@@ -26,7 +26,7 @@ public enum PurenessClassification {
         return implies.contains(classification);
     }
 
-    public boolean isTemporäryClassification() {
+    public boolean isTemporaryClassification() {
         return isTemporäryClassification;
     }
 

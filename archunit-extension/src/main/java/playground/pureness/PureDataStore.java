@@ -81,8 +81,7 @@ public class PureDataStore {
     }
 
     boolean alreadyClassified(JavaCodeUnit codeUnit) {
-        return !getClassification(codeUnit).isTemporäryClassification();
-
+        return !getClassification(codeUnit).isTemporaryClassification();
     }
 
     void classifyNotSEF(JavaCodeUnit javaCodeUnit) {
@@ -149,13 +148,6 @@ public class PureDataStore {
 
         Formatter fo =  new Formatter();
         return fo.format("Gesamt %d Anzahl SSEF:  %d  Anzahl DSEF: %d  Anzahl unsure: %d  Anzahl NotSEF:  %d  Anzahl UNKOWN: %d", classification.size(), ssef, dsef, us, nsef, uc).toString();
-    }
-
-    String getOfClassification(PurenessClassification cl) {
-        return classification.entrySet().stream()
-                .filter(m -> m.getValue().equals(cl))
-                .map(Map.Entry::getKey).map(JavaCodeUnit::getFullName)
-                .collect(Collectors.joining("\n"));
     }
 
     public String getClassificationFor(JavaCodeUnit javaCodeUnit) {

@@ -128,6 +128,10 @@ public final class FuncCoreArchitectureFeature {
                 lines.add("with the following additionally defined non deterministic packages");
                 lines.addAll(nonDeterministicPackages);
             }
+            if (!strictlySideEffectFreePackages.isEmpty()) {
+                lines.add("with the following additionally defined strictly side effect free packages");
+                lines.addAll(strictlySideEffectFreePackages);
+            }
             return Joiner.on(lineSeparator()).join(lines);
         }
 
@@ -138,7 +142,7 @@ public final class FuncCoreArchitectureFeature {
 
         @Override
         public EvaluationResult evaluate(JavaClasses classes) {
-            EvaluationResult result =  new EvaluationResult(this, Priority.MEDIUM);
+            EvaluationResult result = new EvaluationResult(this, Priority.MEDIUM);
             result.add(classes().that().resideInAnyPackage(corePackageIdentifiers).should().onlyDependOnClassesThat().resideOutsideOfPackages(shellPackageIdentifiers).evaluate(classes));
             PurenessArchCondition condition = new PurenessArchCondition();
             //todo parameterize Condition
