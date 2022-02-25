@@ -11,12 +11,12 @@ public enum PurenessClassification {
     PURE("pure", false);
 
     private final String displayName;
-    private final boolean isTemporäryClassification;
+    private final boolean isTemporaryClassification;
     private EnumSet<PurenessClassification> implies;
 
     PurenessClassification(String ds, boolean isTemporary) {
         displayName = ds;
-        isTemporäryClassification = isTemporary;
+        isTemporaryClassification = isTemporary;
     }
 
     public boolean isAtLeast(PurenessClassification classification) {
@@ -27,29 +27,23 @@ public enum PurenessClassification {
     }
 
     public boolean isTemporaryClassification() {
-        return isTemporäryClassification;
+        return isTemporaryClassification;
     }
 
     private EnumSet<PurenessClassification>  initImplies() {
         switch (this) {
             case PURE:
-                return EnumSet.of(
-                        PURE, DSEF ,SSEF);
+                return EnumSet.of(PURE, DSEF, SSEF);
             case SSEF:
-                return EnumSet.of(
-                        DSEF ,SSEF);
+                return EnumSet.of(DSEF, SSEF);
             case DSEF:
-                return EnumSet.of(
-                        DSEF);
+                return EnumSet.of(DSEF);
             case UNSURE:
-                return EnumSet.of(
-                        UNSURE, UNCHECKED);
+                return EnumSet.of(UNSURE, UNCHECKED);
             case NOT_SEF:
-                return EnumSet.of(
-                        NOT_SEF);
+                return EnumSet.of(NOT_SEF);
             case UNCHECKED:
-                return EnumSet.of(
-                        UNCHECKED);
+                return EnumSet.of(UNCHECKED);
             default:
                 throw new IllegalArgumentException("Enum values not fully defines. This is a development issues and should not happen.");
         }

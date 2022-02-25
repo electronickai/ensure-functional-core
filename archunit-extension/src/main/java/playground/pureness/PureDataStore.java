@@ -23,7 +23,7 @@ public class PureDataStore {
      * @param codeUnit CodeUnit fo witch the default is calculated
      * @return the current classification of the codeunit
      */
-    private PurenessClassification preclassifyIfAbsent(JavaCodeUnit codeUnit) {
+    private PurenessClassification applyClassicationFromStore(JavaCodeUnit codeUnit) {
         if (DEF_SSEF_API.stream().anyMatch(a -> codeUnit.getFullName().startsWith(a))) {
             return PurenessClassification.SSEF;
         } else if (DEF_DSEF_API.stream().anyMatch(a -> codeUnit.getFullName().startsWith(a))) {
@@ -36,7 +36,7 @@ public class PureDataStore {
     }
 
     private PurenessClassification getClassification(JavaCodeUnit codeUnit) {
-        return classification.computeIfAbsent(codeUnit, this::preclassifyIfAbsent);
+        return classification.computeIfAbsent(codeUnit, this::applyClassicationFromStore);
     }
 
     public boolean isKnownSSEF(JavaCodeUnit codeUnit) {
