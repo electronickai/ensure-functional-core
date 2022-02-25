@@ -51,12 +51,16 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
             dataStore.classifyNotSEF(codeUnit);
             return;
         }
-
         //TODO KSC 20.02.22: Couldn't we likewise say that methods without parameters are either just returning a constant or can't be deterministic?
+//        if (!codeUnit.isConstructor() && codeUnit.getParameters().isEmpty()) {
+//            dataStore.classifyNotSEF(codeUnit);
+//        }
 
         // Native Operations can not be analyzed, so consider them as NotSEF and perhaps classify as SEF by configuration
         if (codeUnit.getModifiers().contains(JavaModifier.NATIVE)) {
             dataStore.classifyNotSEF(codeUnit);
+            logViolation(conditionEvents, codeUnit.getOwner(),
+                    codeUnit.getFullName() + " is a native method");
             return;
         }
 
@@ -67,32 +71,67 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
             return;
         }
 
-        // Only constructors and static initializers can write on properties
-        PurenessClassification preliminaryClassification;
-        if (!codeUnit.isConstructor()) {
-            preliminaryClassification = classifyBasedOnFieldAccesses(codeUnit, conditionEvents);
+        // All next investigations are dependent from
+        Set<JavaMethodCall> calledMethods = codeUnit.getMethodCallsFromSelf();
 
-            if (preliminaryClassification == null) {
+        if (calledMethods.isEmpty()) {
+            // constructors without any further method calls are side effect free
+            if (codeUnit.isConstructor()) {
+                dataStore.classifySSEF(codeUnit);
                 return;
             }
-        } else {
-            // Konstruktoren sind sef, da sie das erste Mal setzen
-            preliminaryClassification = PurenessClassification.SSEF;
+
+            // If there is no field modification in the method and no further method call, the method is side effect free
+            Set<JavaField> modifiedFields = retrieveModifyingFieldAccess(codeUnit);
+            if (modifiedFields.isEmpty()) {
+                dataStore.classifySSEF(codeUnit);
+                return;
+            }
+
+            //If there are field modified but the state can't be accessed from the outside, the method is domain specific side effect free
+            if (modifiedFieldsAreInternal(codeUnit, modifiedFields)) {
+                dataStore.classifyDSEF(codeUnit);
+                return;
+            }
+
+            //If there are field modifications that can accessed from the outside, the method is not side effect free
+            if (!modifiedFieldsAreInternal(codeUnit, modifiedFields)) {
+                dataStore.classifyNotSEF(codeUnit);
+                logViolation(conditionEvents, codeUnit.getOwner(),
+                        codeUnit.getFullName() + " is writing to at least one property");
+                return;
+            }
         }
 
-        // Wenn keine anderen Methoden aufgerufen werden, ist die Methode bereits durch sich selbst klassifiziert
-        if (codeUnit.getMethodCallsFromSelf().isEmpty()) {
-            dataStore.classifyAs(codeUnit, preliminaryClassification);
-            return;
+        //If there are methods that are classified already, the current method may be derived from that
+        for (JavaMethodCall call : calledMethods) {
+            if (dataStore.isKnownNotSEF(call.getTarget().resolve()) && isVisibleToOuterScope(call, codeUnit)) {
+                logViolation(conditionEvents, codeUnit.getOwner(), codeUnit.getFullName() + " calls not SEF method ( one of " + call.getTarget() + ")");
+                dataStore.classifyNotSEF(codeUnit);
+                return; //NotSEF is the hardest criteria, so we can stop here
+            }
+            if (dataStore.isUnsure(call.getTarget().resolve())) {
+                dataStore.classifyUnsure(codeUnit);
+            }
+            if (!dataStore.isUnsure(call.getTarget().resolve()) && dataStore.isKnownDSEF(call.getTarget().resolve())) {
+                dataStore.classifyDSEF(codeUnit);
+            }
         }
 
-        // jetzt wissen wir, dass andere Methoden aufgerufen werden und die Klassifizierung nur noch von den Methodenaufrufen abhängt.
-        if (validateMethodCalls(codeUnit, conditionEvents, preliminaryClassification)) {
-            return;
-        }
-
-        // Wenn wir bisher keine Klassifizierung gefunden haben, dann schaffen wir es noch nicht.
+        // There may be some uninvestigated cases. Classify them as unsure.
         dataStore.classifyUnsure(codeUnit);
+    }
+
+    private boolean modifiedFieldsAreInternal(JavaCodeUnit codeUnit, Set<JavaField> modifiedFields) {
+        return modifiedFields.stream().allMatch(a -> a.getAccessesToSelf().stream().allMatch(b -> b.getOrigin().equals(codeUnit)));
+    }
+
+    private Set<JavaField> retrieveModifyingFieldAccess(JavaCodeUnit codeUnit) {
+        // TODO KSC 25.02.22 is this sufficient? What about the increment example in https://medium.com/@jackel119/what-is-functional-programming-really-part-i-d1f4d54d69a1
+        return codeUnit.getFieldAccesses().stream()
+                .filter(fa -> fa.getAccessType().equals(JavaFieldAccess.AccessType.SET))
+                .map(m -> m.getTarget().resolveField().orElse(null)).filter(Objects::nonNull)
+                .collect(Collectors.toSet());
     }
 
     /**
@@ -120,47 +159,15 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
                 .anyMatch(javaConstructorCall -> javaConstructorCall.getTargetOwner().isAssignableTo(Exception.class));
     }
 
-    /**
-     * @param javaMethod
-     * @param conditionEvents
-     * @return
-     */
-    private PurenessClassification classifyBasedOnFieldAccesses(JavaCodeUnit javaMethod, ConditionEvents conditionEvents) {
-
-        // is this sufficient? What about the increment example in https://medium.com/@jackel119/what-is-functional-programming-really-part-i-d1f4d54d69a1
-        Set<JavaField> setfields = javaMethod.getFieldAccesses().stream()
-                .filter(fa -> fa.getAccessType().equals(JavaFieldAccess.AccessType.SET))
-                .map(m -> m.getTarget().resolveField().orElse(null)).filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-
-        if (setfields.isEmpty()) {
-            return PurenessClassification.SSEF;
-        }
-
-        if (setfields.stream().allMatch(a -> a.getAccessesToSelf().stream().allMatch(b -> b.getOrigin().equals(javaMethod)))) {
-            return PurenessClassification.DSEF;
-        }
-
-        logViolation(conditionEvents, javaMethod.getOwner(),
-                javaMethod.getFullName() + " is writing to at least one property");
-        dataStore.classifyNotSEF(javaMethod);
-        return null;
-    }
-
     private boolean validateMethodCalls(JavaCodeUnit codeUnit, ConditionEvents conditionEvents, PurenessClassification premilaryClassification) {
         Set<JavaMethodCall> callsToCheck = codeUnit.getMethodCallsFromSelf();
-
-        if (callsToCheck.isEmpty()) {
-            dataStore.classifySSEF(codeUnit);
-            return true;
-        }
 
         for (JavaMethodCall call : callsToCheck) {
             if (dataStore.isUnsure(call.getTarget().resolve())) {
                 return false;
             }
             if (dataStore.isKnownNotSEF(call.getTarget().resolve()) && isVisibleToOuterScope(call, codeUnit)) {
-                logViolation(conditionEvents, codeUnit.getOwner(), codeUnit.getFullName() + " calls not SEF method ( one of" + call.getTarget() + ")");
+                logViolation(conditionEvents, codeUnit.getOwner(), codeUnit.getFullName() + "  calls not SEF method ( one of" + call.getTarget() + ")");
                 dataStore.classifyNotSEF(codeUnit);
                 return true;
             }
