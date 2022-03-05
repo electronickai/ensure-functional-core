@@ -43,10 +43,9 @@ public class PureDataStore {
         return PurenessClassification.SSEF.equals(getClassification(codeUnit));
     }
 
-    boolean isKnownSSEF(Collection<JavaCodeUnit> methods) {
+    boolean isKnownSSEF(Collection<? extends JavaCodeUnit> methods) {
         return methods.isEmpty() || methods.stream().anyMatch(this::isKnownSSEF);
     }
-
 
     public boolean isKnownDSEF(JavaCodeUnit codeUnit) {
         return PurenessClassification.DSEF.equals(getClassification(codeUnit));
@@ -56,7 +55,11 @@ public class PureDataStore {
         return getClassification(codeUnit).isAtLeast(PurenessClassification.DSEF);
     }
 
-    boolean isKnownAtLeastDSEF(Collection<JavaCodeUnit> methods) {
+    boolean isKnownAtLeastSSEF(JavaCodeUnit codeUnit) {
+        return getClassification(codeUnit).isAtLeast(PurenessClassification.SSEF);
+    }
+
+    boolean isKnownAtLeastDSEF(Collection<? extends JavaCodeUnit> methods) {
         return methods.isEmpty() || methods.stream().anyMatch(this::isKnownAtLeastDSEF);
     }
 
@@ -70,6 +73,10 @@ public class PureDataStore {
 
     boolean isKnownNotSEF(Collection<? extends JavaCodeUnit> methods) {
         return methods.isEmpty() || methods.stream().anyMatch(this::isKnownNotSEF);
+    }
+
+    public boolean isKnownAtLeastSSEF(Collection<? extends JavaCodeUnit> methods) {
+        return methods.isEmpty() || methods.stream().anyMatch(this::isKnownAtLeastSSEF);
     }
 
     public boolean isUnsure(JavaCodeUnit codeUnit) {
@@ -146,11 +153,11 @@ public class PureDataStore {
             }
         }
 
-        Formatter fo =  new Formatter();
+        Formatter fo = new Formatter();
         return fo.format("Gesamt %d Anzahl SSEF:  %d  Anzahl DSEF: %d  Anzahl unsure: %d  Anzahl NotSEF:  %d  Anzahl UNKOWN: %d", classification.size(), ssef, dsef, us, nsef, uc).toString();
     }
 
-    public String getClassificationFor(JavaCodeUnit javaCodeUnit) {
-        return classification.getOrDefault(javaCodeUnit, PurenessClassification.UNCHECKED).toString();
+    public PurenessClassification getClassificationFor(JavaCodeUnit javaCodeUnit) {
+        return classification.getOrDefault(javaCodeUnit, PurenessClassification.UNCHECKED);
     }
 }

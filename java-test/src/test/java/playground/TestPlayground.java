@@ -1,15 +1,12 @@
 package playground;
 
-import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.domain.JavaCodeUnit;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
-import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.EvaluationResult;
 import org.junit.AssumptionViolatedException;
-import playground.deterministic.DetDataStore;
 import playground.deterministic.DeterministicArchCondition;
 import playground.pureness.PurenessArchCondition;
 
@@ -179,7 +176,7 @@ public class TestPlayground {
 
     static String getClassificationForSef(String javaMethod) {
         if (analyse.containsKey(javaMethod)) {
-            return BE_SEF.getDataStore().getClassificationFor(analyse.get(javaMethod));
+            return BE_SEF.getDataStore().getClassificationFor(analyse.get(javaMethod)).toString();
         } else {
             return "NOT FOUND";
         }

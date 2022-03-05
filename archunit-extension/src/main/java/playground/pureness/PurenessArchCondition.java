@@ -4,6 +4,7 @@ import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaCodeUnit;
 import com.tngtech.archunit.core.domain.JavaField;
 import com.tngtech.archunit.core.domain.JavaFieldAccess;
+import com.tngtech.archunit.core.domain.JavaMethod;
 import com.tngtech.archunit.core.domain.JavaMethodCall;
 import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.lang.ArchCondition;
@@ -51,10 +52,6 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
             dataStore.classifyNotSEF(codeUnit);
             return;
         }
-        //TODO KSC 20.02.22: Couldn't we likewise say that methods without parameters are either just returning a constant or can't be deterministic?
-//        if (!codeUnit.isConstructor() && codeUnit.getParameters().isEmpty()) {
-//            dataStore.classifyNotSEF(codeUnit);
-//        }
 
         // Native Operations can not be analyzed, so consider them as NotSEF and perhaps classify as SEF by configuration
         if (codeUnit.getModifiers().contains(JavaModifier.NATIVE)) {
@@ -71,7 +68,7 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
             return;
         }
 
-        // All next investigations are dependent from
+        // All next investigations are dependent from method calls
         Set<JavaMethodCall> calledMethods = codeUnit.getMethodCallsFromSelf();
 
         if (calledMethods.isEmpty()) {
@@ -88,38 +85,55 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
                 return;
             }
 
-            //If there are field modified but the state can't be accessed from the outside, the method is domain specific side effect free
+            // If there are field modified but the state can't be accessed from the outside, the method is domain specific side effect free
             if (modifiedFieldsAreInternal(codeUnit, modifiedFields)) {
                 dataStore.classifyDSEF(codeUnit);
-                return;
-            }
-
-            //If there are field modifications that can accessed from the outside, the method is not side effect free
-            if (!modifiedFieldsAreInternal(codeUnit, modifiedFields)) {
+            } else { // If there are field modifications that can accessed from the outside, the method is not side effect free
                 dataStore.classifyNotSEF(codeUnit);
                 logViolation(conditionEvents, codeUnit.getOwner(),
                         codeUnit.getFullName() + " is writing to at least one property");
-                return;
             }
+            return;
         }
 
         //If there are methods that are classified already, the current method may be derived from that
-        for (JavaMethodCall call : calledMethods) {
-            if (dataStore.isKnownNotSEF(call.getTarget().resolve()) && isVisibleToOuterScope(call, codeUnit)) {
-                logViolation(conditionEvents, codeUnit.getOwner(), codeUnit.getFullName() + " calls not SEF method ( one of " + call.getTarget() + ")");
+        dataStore.classifyUnsure(codeUnit);
+        classifyBasedOnMethodCalls(codeUnit, conditionEvents);
+    }
+
+    private boolean classifyBasedOnMethodCalls(JavaCodeUnit codeUnit, ConditionEvents conditionEvents) {
+        ensurePreclassification(codeUnit);
+        boolean specificCategorizationApplied = !(dataStore.getClassificationFor(codeUnit) == PurenessClassification.UNSURE);
+        Set<JavaMethodCall> callsToCheck = codeUnit.getMethodCallsFromSelf();
+
+        for (JavaMethodCall call : callsToCheck) {
+            Set<JavaMethod> resolvedTarget = call.getTarget().resolve();
+            if (dataStore.isKnownNotSEF(resolvedTarget) && isVisibleToOuterScope(call, codeUnit)) {
+                logViolation(conditionEvents, codeUnit.getOwner(), codeUnit.getFullName() + "  calls not SEF method ( one of " + call.getTarget() + ")");
                 dataStore.classifyNotSEF(codeUnit);
-                return; //NotSEF is the hardest criteria, so we can stop here
+                return true; //NotSEF is the hardest criteria, so we can stop here
             }
-            if (dataStore.isUnsure(call.getTarget().resolve())) {
+            if (dataStore.isUnsure(resolvedTarget)) {
                 dataStore.classifyUnsure(codeUnit);
+                specificCategorizationApplied = false;
             }
-            if (!dataStore.isUnsure(call.getTarget().resolve()) && dataStore.isKnownDSEF(call.getTarget().resolve())) {
+            if (!dataStore.isUnsure(codeUnit) && dataStore.isKnownDSEF(resolvedTarget)) {
                 dataStore.classifyDSEF(codeUnit);
+                specificCategorizationApplied = true;
+            }
+            if (!dataStore.isUnsure(codeUnit) && !dataStore.isKnownDSEF(codeUnit) && dataStore.isKnownSSEF(resolvedTarget)) {
+                dataStore.classifySSEF(codeUnit);
+                specificCategorizationApplied = true;
             }
         }
 
-        // There may be some uninvestigated cases. Classify them as unsure.
-        dataStore.classifyUnsure(codeUnit);
+        return specificCategorizationApplied;
+    }
+
+    private void ensurePreclassification(JavaCodeUnit codeUnit) {
+        if (dataStore.getClassificationFor(codeUnit) == null || dataStore.getClassificationFor(codeUnit) == PurenessClassification.UNCHECKED) {
+            throw new IllegalStateException("Method assumes that code unit is preclassified already");
+        }
     }
 
     private boolean modifiedFieldsAreInternal(JavaCodeUnit codeUnit, Set<JavaField> modifiedFields) {
@@ -159,28 +173,6 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
                 .anyMatch(javaConstructorCall -> javaConstructorCall.getTargetOwner().isAssignableTo(Exception.class));
     }
 
-    private boolean validateMethodCalls(JavaCodeUnit codeUnit, ConditionEvents conditionEvents, PurenessClassification premilaryClassification) {
-        Set<JavaMethodCall> callsToCheck = codeUnit.getMethodCallsFromSelf();
-
-        for (JavaMethodCall call : callsToCheck) {
-            if (dataStore.isUnsure(call.getTarget().resolve())) {
-                return false;
-            }
-            if (dataStore.isKnownNotSEF(call.getTarget().resolve()) && isVisibleToOuterScope(call, codeUnit)) {
-                logViolation(conditionEvents, codeUnit.getOwner(), codeUnit.getFullName() + "  calls not SEF method ( one of" + call.getTarget() + ")");
-                dataStore.classifyNotSEF(codeUnit);
-                return true;
-            }
-            if (dataStore.isKnownDSEF(call.getTarget().resolve())) {
-                premilaryClassification = PurenessClassification.DSEF;
-            }
-        }
-
-        dataStore.classifyAs(codeUnit, premilaryClassification);
-
-        return true;
-    }
-
     private boolean isVisibleToOuterScope(JavaMethodCall call, JavaCodeUnit codeUnit) {
         Set<JavaClass> internalInstantiations = codeUnit.getConstructorCallsFromSelf()
                 .stream()
@@ -211,16 +203,16 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
     private boolean applyPropagationRules(ConditionEvents conditionEvents) {
 
         boolean hasChanged;
-        Set<JavaCodeUnit> unchecked = dataStore.getAllMethodsOfClassification(PurenessClassification.UNCHECKED);
 
-        hasChanged = !unchecked.isEmpty();
         //TODO KSC 16.02.22: Check why there varying unchecked code units (11 on start and changing on each iteration)
-        for (JavaCodeUnit meth : unchecked) {
-            collectAndPreClassify(meth, conditionEvents);
+        Set<JavaCodeUnit> unchecked = dataStore.getAllMethodsOfClassification(PurenessClassification.UNCHECKED);
+        hasChanged = !unchecked.isEmpty();
+        for (JavaCodeUnit uncheckedCodeUnit : unchecked) {
+            collectAndPreClassify(uncheckedCodeUnit, conditionEvents);
         }
 
-        for (JavaCodeUnit meth : dataStore.getAllMethodsOfClassification(PurenessClassification.UNSURE)) {
-            hasChanged |= validateMethodCalls(meth, conditionEvents, PurenessClassification.SSEF);
+        for (JavaCodeUnit unsureCodeUnit : dataStore.getAllMethodsOfClassification(PurenessClassification.UNSURE)) {
+            hasChanged |= classifyBasedOnMethodCalls(unsureCodeUnit, conditionEvents);
         }
 
         hasChanged |= checkInterfaces();
