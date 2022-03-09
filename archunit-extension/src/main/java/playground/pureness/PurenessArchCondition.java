@@ -10,6 +10,8 @@ import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -18,6 +20,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class PurenessArchCondition extends ArchCondition<JavaClass> {
+
+    private final Logger log = LoggerFactory.getLogger(PurenessArchCondition.class);
 
     private final PureDataStore dataStore;
     //TODO KSC 20.02.22: Just protocols each checked code unit. Is this field still of use?
@@ -190,12 +194,11 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
 
     @Override
     public void finish(ConditionEvents conditionEvents) {
-        System.out.println(dataStore.info() + " Anzahl offene Interfaces: " + interfaces.size());
+        log.info(dataStore.info() + " Anzahl offene Interfaces: " + interfaces.size());
         boolean hasChanged = true;
         while (hasChanged) {
             hasChanged = applyPropagationRules(conditionEvents);
-            //TODO KSC 14.02.22: Use a logger
-            System.out.println(dataStore.info() + " Anzahl offene Interfaces: " + interfaces.size());
+            log.info(dataStore.info() + " Anzahl offene Interfaces: " + interfaces.size());
         }
         dataStore.getAllMethodsOfClassification(PurenessClassification.UNSURE).forEach(un -> logUnsure(conditionEvents, un.getOwner(), un));
     }
