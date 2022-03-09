@@ -35,12 +35,11 @@ dependencies {
     runtimeOnly 'org.postgresql:postgresql'
     
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testCompile 'com.tngtech.archunit:archunit-junit4:0.9.3'
+    testCompile 'com.tngtech.archunit:archunit-junit4:0.23.0'
 
-
-    testImplementation  'junit:junit:4.13.2'
-    testImplementation 'com.tngtech.archunit:archunit-junit5:0.22.0'
-    testImplementation 'net.jqwik:jqwik:1.6.1'
-    testImplementation 'org.assertj:assertj-core:3.21.0'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'com.tngtech.archunit:archunit-junit5:0.23.0'
+    testImplementation 'net.jqwik:jqwik:1.6.4'
+    testImplementation 'org.assertj:assertj-core:3.22.0'
     testImplementation project(':archunit-extension')
 }
