@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class PurenessArchCondition extends ArchCondition<JavaClass> {
@@ -26,12 +27,28 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
     private final PureDataStore dataStore;
     //TODO KSC 20.02.22: Just protocols each checked code unit. Is this field still of use?
     private final HashMap<String, JavaCodeUnit> ANALYSE_HELPER;
-    private final Set<JavaCodeUnit> interfaces = new HashSet<>();
+    private final Set<JavaCodeUnit> abstractMethods = new HashSet<>();
 
     public PurenessArchCondition(Object... args) {
         super("side effect free", args);
         ANALYSE_HELPER = new HashMap<>();
         dataStore = new PureDataStore();
+    }
+
+    @Override
+    public void check(JavaClass javaClass, ConditionEvents conditionEvents) {
+        javaClass.getCodeUnits().forEach(javaConstructor -> collectAndPreClassify(javaConstructor, conditionEvents));
+    }
+
+    @Override
+    public void finish(ConditionEvents conditionEvents) {
+        log.info(dataStore.countCategories() + " Anzahl offene Interfaces: " + abstractMethods.size());
+        boolean hasChanged = true;
+        while (hasChanged) {
+            hasChanged = applyPropagationRules(conditionEvents);
+            log.info(dataStore.countCategories() + " Anzahl offene Interfaces: " + abstractMethods.size());
+        }
+        dataStore.getAllMethodsOfClassification(PurenessClassification.UNSURE).forEach(un -> logUnsure(conditionEvents, un.getOwner(), un));
     }
 
     /**
@@ -61,13 +78,13 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
         if (codeUnit.getModifiers().contains(JavaModifier.NATIVE)) {
             dataStore.classifyNotSEF(codeUnit);
             logViolation(conditionEvents, codeUnit.getOwner(),
-                    codeUnit.getFullName() + " is a native method");
+                codeUnit.getFullName() + " is a native method");
             return;
         }
 
         // Interfaces and abstract classes need special handling, because all its implementation needs to be SEF, so collect separately
         if (codeUnit.getOwner().isInterface() || codeUnit.getModifiers().contains(JavaModifier.ABSTRACT)) {
-            interfaces.add(codeUnit);
+            abstractMethods.add(codeUnit);
             dataStore.classifyUnsure(codeUnit);
             return;
         }
@@ -95,7 +112,7 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
             } else { // If there are field modifications that can accessed from the outside, the method is not side effect free
                 dataStore.classifyNotSEF(codeUnit);
                 logViolation(conditionEvents, codeUnit.getOwner(),
-                        codeUnit.getFullName() + " is writing to at least one property");
+                    codeUnit.getFullName() + " is writing to at least one property");
             }
             return;
         }
@@ -103,53 +120,6 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
         //If there are methods that are classified already, the current method may be derived from that
         dataStore.classifyUnsure(codeUnit);
         classifyBasedOnMethodCalls(codeUnit, conditionEvents);
-    }
-
-    private boolean classifyBasedOnMethodCalls(JavaCodeUnit codeUnit, ConditionEvents conditionEvents) {
-        ensurePreclassification(codeUnit);
-        boolean specificCategorizationApplied = !(dataStore.getClassificationFor(codeUnit) == PurenessClassification.UNSURE);
-        Set<JavaMethodCall> callsToCheck = codeUnit.getMethodCallsFromSelf();
-
-        for (JavaMethodCall call : callsToCheck) {
-            Set<JavaMethod> resolvedTarget = call.getTarget().resolve();
-            if (dataStore.isKnownNotSEF(resolvedTarget) && isVisibleToOuterScope(call, codeUnit)) {
-                logViolation(conditionEvents, codeUnit.getOwner(), codeUnit.getFullName() + "  calls not SEF method ( one of " + call.getTarget() + ")");
-                dataStore.classifyNotSEF(codeUnit);
-                return true; //NotSEF is the hardest criteria, so we can stop here
-            }
-            if (dataStore.isUnsure(resolvedTarget)) {
-                dataStore.classifyUnsure(codeUnit);
-                specificCategorizationApplied = false;
-            }
-            if (!dataStore.isUnsure(codeUnit) && dataStore.isKnownDSEF(resolvedTarget)) {
-                dataStore.classifyDSEF(codeUnit);
-                specificCategorizationApplied = true;
-            }
-            if (!dataStore.isUnsure(codeUnit) && !dataStore.isKnownDSEF(codeUnit) && dataStore.isKnownSSEF(resolvedTarget)) {
-                dataStore.classifySSEF(codeUnit);
-                specificCategorizationApplied = true;
-            }
-        }
-
-        return specificCategorizationApplied;
-    }
-
-    private void ensurePreclassification(JavaCodeUnit codeUnit) {
-        if (dataStore.getClassificationFor(codeUnit) == null || dataStore.getClassificationFor(codeUnit) == PurenessClassification.UNCHECKED) {
-            throw new IllegalStateException("Method assumes that code unit is preclassified already");
-        }
-    }
-
-    private boolean modifiedFieldsAreInternal(JavaCodeUnit codeUnit, Set<JavaField> modifiedFields) {
-        return modifiedFields.stream().allMatch(a -> a.getAccessesToSelf().stream().allMatch(b -> b.getOrigin().equals(codeUnit)));
-    }
-
-    private Set<JavaField> retrieveModifyingFieldAccess(JavaCodeUnit codeUnit) {
-        // TODO KSC 25.02.22 is this sufficient? What about the increment example in https://medium.com/@jackel119/what-is-functional-programming-really-part-i-d1f4d54d69a1
-        return codeUnit.getFieldAccesses().stream()
-                .filter(fa -> fa.getAccessType().equals(JavaFieldAccess.AccessType.SET))
-                .map(m -> m.getTarget().resolveField().orElse(null)).filter(Objects::nonNull)
-                .collect(Collectors.toSet());
     }
 
     /**
@@ -168,39 +138,26 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
      */
     private boolean checkVoidMethodAsNotSef(JavaCodeUnit codeUnit) {
         return !codeUnit.isConstructor() &&
-                codeUnit.getRawReturnType().getFullName().equals("void");
+            codeUnit.getRawReturnType().getFullName().equals("void");
     }
 
-    private boolean throwsException(JavaCodeUnit javaMethod) {
-        return javaMethod.getConstructorCallsFromSelf()
-                .stream()
-                .anyMatch(javaConstructorCall -> javaConstructorCall.getTargetOwner().isAssignableTo(Exception.class));
-    }
-
-    private boolean isVisibleToOuterScope(JavaMethodCall call, JavaCodeUnit codeUnit) {
-        Set<JavaClass> internalInstantiations = codeUnit.getConstructorCallsFromSelf()
-                .stream()
-                .map(constructorCall -> constructorCall.getTarget().getOwner())
-                .collect(Collectors.toUnmodifiableSet());
-        return !internalInstantiations.contains(call.getTarget().getOwner());
-    }
-
-    private void logViolation(ConditionEvents conditionEvents, JavaClass owner, String meldung) {
-
+    private void logViolation(ConditionEvents conditionEvents, JavaClass owner, String message) {
+        // TODO KSC 09.03.22:  Should check for core package (if really needed?) and not for fixed string
         if (owner.getFullName().startsWith("hamburg.")) {
-            conditionEvents.add(SimpleConditionEvent.violated(owner, meldung));
+            conditionEvents.add(SimpleConditionEvent.violated(owner, message));
         }
     }
 
-    @Override
-    public void finish(ConditionEvents conditionEvents) {
-        log.info(dataStore.info() + " Anzahl offene Interfaces: " + interfaces.size());
-        boolean hasChanged = true;
-        while (hasChanged) {
-            hasChanged = applyPropagationRules(conditionEvents);
-            log.info(dataStore.info() + " Anzahl offene Interfaces: " + interfaces.size());
-        }
-        dataStore.getAllMethodsOfClassification(PurenessClassification.UNSURE).forEach(un -> logUnsure(conditionEvents, un.getOwner(), un));
+    private Set<JavaField> retrieveModifyingFieldAccess(JavaCodeUnit codeUnit) {
+        // TODO KSC 25.02.22 is this sufficient? What about the increment example in https://medium.com/@jackel119/what-is-functional-programming-really-part-i-d1f4d54d69a1
+        return codeUnit.getFieldAccesses().stream()
+            .filter(fa -> fa.getAccessType().equals(JavaFieldAccess.AccessType.SET))
+            .map(m -> m.getTarget().resolveField().orElse(null)).filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+    }
+
+    private boolean modifiedFieldsAreInternal(JavaCodeUnit codeUnit, Set<JavaField> modifiedFields) {
+        return modifiedFields.stream().allMatch(a -> a.getAccessesToSelf().stream().allMatch(b -> b.getOrigin().equals(codeUnit)));
     }
 
     private boolean applyPropagationRules(ConditionEvents conditionEvents) {
@@ -222,42 +179,92 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
         return hasChanged;
     }
 
-    private void logUnsure(ConditionEvents conditionEvents, JavaClass owner, JavaCodeUnit meth) {
+    private boolean classifyBasedOnMethodCalls(JavaCodeUnit codeUnit, ConditionEvents conditionEvents) {
+        ensurePreclassification(codeUnit);
+        boolean specificCategorizationApplied = !(dataStore.getClassificationFor(codeUnit) == PurenessClassification.UNSURE);
+        Set<JavaMethodCall> callsToCheck = codeUnit.getMethodCallsFromSelf();
+
+        for (JavaMethodCall call : callsToCheck) {
+            Set<JavaMethod> resolvedTarget = call.getTarget().resolve();
+            if (dataStore.checkContainNotSEF(resolvedTarget) && isVisibleToOuterScope(call, codeUnit)) {
+                logViolation(conditionEvents, codeUnit.getOwner(), codeUnit.getFullName() + "  calls not SEF method ( one of " + call.getTarget() + ")");
+                dataStore.classifyNotSEF(codeUnit);
+                return true; //NotSEF is the hardest criteria, so we can stop here
+            }
+            if (dataStore.checkContainUnsure(resolvedTarget)) {
+                dataStore.classifyUnsure(codeUnit);
+                specificCategorizationApplied = false;
+            }
+            if (!dataStore.checkToBeUnsure(codeUnit) && dataStore.checkContainDSEF(resolvedTarget)) {
+                dataStore.classifyDSEF(codeUnit);
+                specificCategorizationApplied = true;
+            }
+            if (!dataStore.checkToBeUnsure(codeUnit) && !dataStore.checkToBeDSEF(codeUnit) && dataStore.checkContainSSEF(resolvedTarget)) {
+                dataStore.classifySSEF(codeUnit);
+                specificCategorizationApplied = true;
+            }
+        }
+
+        return specificCategorizationApplied;
+    }
+
+    private void ensurePreclassification(JavaCodeUnit codeUnit) {
+        if (dataStore.getClassificationFor(codeUnit) == null || dataStore.getClassificationFor(codeUnit) == PurenessClassification.UNCHECKED) {
+            throw new IllegalStateException("Method assumes that code unit is preclassified already");
+        }
+    }
+
+    private boolean isVisibleToOuterScope(JavaMethodCall call, JavaCodeUnit codeUnit) {
+        Set<JavaClass> internalInstantiations = codeUnit.getConstructorCallsFromSelf()
+            .stream()
+            .map(constructorCall -> constructorCall.getTarget().getOwner())
+            .collect(Collectors.toUnmodifiableSet());
+        return !internalInstantiations.contains(call.getTarget().getOwner());
+    }
+
+    private void logUnsure(ConditionEvents conditionEvents, JavaClass owner, JavaCodeUnit codeUnit) {
+        //TODO KSC 10.03.22: What is this magic classification for?
         if (owner.getFullName().startsWith("app.")) {
-            Set<JavaMethodCall> unsure = meth.getMethodCallsFromSelf().stream().filter(c -> !dataStore.isKnownNotSEF(c.getTarget().resolve()) && !dataStore.isKnownDSEF(c.getTarget().resolve())).collect(Collectors.toSet());
-            conditionEvents.add(SimpleConditionEvent.violated(owner, "unsure about " + meth.getFullName() + " because of " + unsure));
+            Set<JavaMethodCall> unsure = codeUnit.getMethodCallsFromSelf().stream().filter(c -> !dataStore.checkContainNotSEF(c.getTarget().resolve()) && !dataStore.checkContainDSEF(c.getTarget().resolve())).collect(Collectors.toSet());
+            conditionEvents.add(SimpleConditionEvent.violated(owner, "unsure about " + codeUnit.getFullName() + " because of " + unsure));
         }
     }
 
     private boolean checkInterfaces() {
         Set<JavaCodeUnit> toRemove = new HashSet<>();
-        for (JavaCodeUnit anInterface : interfaces) {
-            if (anInterface.getOwner().getAllSubclasses().stream()
-                    .allMatch(cl -> cl.getAllMethods().stream()
-                            .filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes()))
-                            .allMatch(dataStore::isKnownSSEF))) {
-                dataStore.classifySSEF(anInterface);
-                toRemove.add(anInterface);
-            } else if (anInterface.getOwner().getAllSubclasses().stream()
-                    .allMatch(cl -> cl.getAllMethods().stream()
-                            .filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes()))
-                            .allMatch(dataStore::isKnownAtLeastDSEF))) {
-                dataStore.classifyDSEF(anInterface);
-                toRemove.add(anInterface);
-            } else if (anInterface.getOwner().getAllSubclasses().stream()
-                    .anyMatch(cl -> cl.getAllMethods().stream()
-                            .filter(f -> f.getName().equals(anInterface.getName()) && anInterface.getRawParameterTypes().equals(f.getRawParameterTypes()))
-                            .anyMatch(dataStore::isKnownNotSEF))) {
-                dataStore.isKnownNotSEF(anInterface);
-                toRemove.add(anInterface);
+        for (JavaCodeUnit abstractMethod : abstractMethods) {
+            if (checkAllImplementationsToBe(abstractMethod, dataStore::checkToBeSSEF)) {
+                dataStore.classifySSEF(abstractMethod);
+                toRemove.add(abstractMethod);
+            } else if (checkAllImplementationsToBe(abstractMethod, dataStore::checkToBeAtLeastDSEF)) {
+                dataStore.classifyDSEF(abstractMethod);
+                toRemove.add(abstractMethod);
+            } else if (checkAnyImplementationToBeNotSEF(abstractMethod)) {
+                dataStore.checkToBeNotSEF(abstractMethod);
+                toRemove.add(abstractMethod);
             }
         }
-        return interfaces.removeAll(toRemove);
+        return abstractMethods.removeAll(toRemove);
     }
 
-    @Override
-    public void check(JavaClass javaClass, ConditionEvents conditionEvents) {
-        javaClass.getCodeUnits().forEach(javaConstructor -> collectAndPreClassify(javaConstructor, conditionEvents));
+    private boolean checkAllImplementationsToBe(JavaCodeUnit abstractMethod,
+        Predicate<JavaMethod> predicate) {
+        return abstractMethod.getOwner().getAllSubclasses().stream()
+            .allMatch(subclass -> subclass.getAllMethods().stream()
+                .filter(matchMethodSignature(abstractMethod))
+                .allMatch(predicate));
+    }
+
+    private boolean checkAnyImplementationToBeNotSEF(JavaCodeUnit abstractMethod) {
+        return abstractMethod.getOwner().getAllSubclasses().stream()
+            .anyMatch(cl -> cl.getAllMethods().stream()
+                .filter(matchMethodSignature(abstractMethod))
+                .anyMatch(dataStore::checkToBeNotSEF));
+    }
+
+    private Predicate<JavaMethod> matchMethodSignature(JavaCodeUnit abstractMethod) {
+        return f -> f.getName().equals(abstractMethod.getName())
+            && abstractMethod.getRawParameterTypes().equals(f.getRawParameterTypes());
     }
 
     public PureDataStore getDataStore() {

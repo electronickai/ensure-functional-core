@@ -97,7 +97,7 @@ public class TestPlayground {
         assertSSEF("java.lang.Object.hashCode()");
         assertNotSEF("java.lang.Thread.isAlive()"); // TODO soll mindestens DSEF werden
 
-        /** Strings */
+        /* Strings */
         assertNotSEF("java.lang.String.chars()"); // TODO soll mindestens DSEF werden
         System.out.println("As expected");
 
@@ -113,7 +113,7 @@ public class TestPlayground {
 
     static void assertNotSEF(String meth) {
         if (analyse.containsKey(meth)) {
-            assertTrue(BE_SEF.getDataStore().isKnownNotSEF(analyse.get(meth)),
+            assertTrue(BE_SEF.getDataStore().checkToBeNotSEF(analyse.get(meth)),
                     "Regression of result for %s should be \"NotSEF\" but was \"%s\"", meth, getClassificationForSef(meth));
         } else {
             throw new AssumptionViolatedException("Methode " + meth + " not found!");
@@ -149,7 +149,7 @@ public class TestPlayground {
 
     static void assertSSEF(String meth) {
         if (analyse.containsKey(meth)) {
-            assertTrue(BE_SEF.getDataStore().isKnownSSEF(analyse.get(meth)),
+            assertTrue(BE_SEF.getDataStore().checkToBeSSEF(analyse.get(meth)),
                     "Regression of result for %s should be \"SSEF\" but was \"%s\"", meth, getClassificationForSef(meth));
         } else {
             throw new AssumptionViolatedException("Methode " + meth + " not found!");
@@ -158,7 +158,7 @@ public class TestPlayground {
 
     static void assertDSEF(String meth) {
         if (analyse.containsKey(meth)) {
-            assertTrue(BE_SEF.getDataStore().isKnownDSEF(analyse.get(meth)),
+            assertTrue(BE_SEF.getDataStore().checkToBeDSEF(analyse.get(meth)),
                     "Regression of result for %s should be \"DSEF\" but was \"%s\"", meth, getClassificationForSef(meth));
         } else {
             throw new AssumptionViolatedException("Methode " + meth + " not found!");
@@ -167,7 +167,7 @@ public class TestPlayground {
 
     static void assertUnsure(String meth) {
         if (analyse.containsKey(meth)) {
-            assertTrue(BE_SEF.getDataStore().isUnsure(analyse.get(meth)),
+            assertTrue(BE_SEF.getDataStore().checkToBeUnsure(analyse.get(meth)),
                     "Regression of result for %s should be \"Unsure\" but was \"%s\"", meth, getClassificationForSef(meth));
         } else {
             throw new AssumptionViolatedException("Methode " + meth + " not found!");
