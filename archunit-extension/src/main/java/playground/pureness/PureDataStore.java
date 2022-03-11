@@ -5,6 +5,7 @@ import com.tngtech.archunit.core.domain.JavaCodeUnit;
 import java.util.Collection;
 import java.util.Formatter;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -13,18 +14,21 @@ public class PureDataStore {
 
   private final HashMap<JavaCodeUnit, PurenessClassification> classification = new HashMap<>();
 
-  private final Set<String> SSEF_API_PREFIXES =
-      Set.of("java.lang.Object.clone()", "java.lang.Object.hashCode()",
-          "java.lang.Object.toString()", "java.lang.Object.getClass()",
-          "java.lang.Class.getSimpleName()", "java.lang.Class.privateGetPublicMethods()",
-          "java.lang.Class.getGenericInfo()");
-  private final Set<String> DSEF_API_PREFIXES =
-      Set.of("java.util.logging.", "java.util.function.BiConsumer");
-  private final Set<String> NOT_SEF_API_PREFIXES =
-      Set.of("java.io.", "java.nio.", "java.reflect.", "jdk.internal.", "sun.management.",
-          "sun.reflect.", "java.net.", "java.security.", "javax.xml", "sun.invoke.",
-          "javax.management.", "org.w3c.", "java.util.concurrent.", "java.util.logging.",
-          "java.lang.invoke.");
+  private final Set<String> SSEF_PREFIXES = new HashSet<>();
+  private final Set<String> DSEF_PREFIXES = new HashSet<>();
+  private final Set<String> NOT_SEF_PREFIXES = new HashSet<>();
+
+  public void addPrefixesForSideEffectFree(Set<String> prefixes) {
+    SSEF_PREFIXES.addAll(prefixes);
+  }
+
+  public void addPrefixesForDomainSpecificSideEffectFree(Set<String> prefixes) {
+    DSEF_PREFIXES.addAll(prefixes);
+  }
+
+  public void addPrefixesForNotSideEffectFree(Set<String> prefixes) {
+    NOT_SEF_PREFIXES.addAll(prefixes);
+  }
 
   public PurenessClassification getClassificationFor(JavaCodeUnit javaCodeUnit) {
     return classification.getOrDefault(javaCodeUnit, PurenessClassification.UNCHECKED);
@@ -105,6 +109,10 @@ public class PureDataStore {
         .collect(Collectors.toSet());
   }
 
+   private PurenessClassification getClassification(JavaCodeUnit codeUnit) {
+    return classification.computeIfAbsent(codeUnit, this::tryToApplyPreconfiguredClassication);
+  }
+
   String countCategories() {
 
     int ssef = 0;
@@ -139,14 +147,6 @@ public class PureDataStore {
         classification.size(), ssef, dsef, unsure, not_sef, unchecked).toString();
   }
 
-  private boolean isPrefixOf(JavaCodeUnit codeUnit, Set<String> SSEF_API_PREFIXES) {
-    return SSEF_API_PREFIXES.stream().anyMatch(a -> codeUnit.getFullName().startsWith(a));
-  }
-
-  private PurenessClassification getClassification(JavaCodeUnit codeUnit) {
-    return classification.computeIfAbsent(codeUnit, this::tryToApplyPreconfiguredClassication);
-  }
-
   /**
    * Calculate the default classification depending on the configured predefined classifications
    *
@@ -154,14 +154,19 @@ public class PureDataStore {
    * @return the current classification of the codeunit
    */
   private PurenessClassification tryToApplyPreconfiguredClassication(JavaCodeUnit codeUnit) {
-    if (isPrefixOf(codeUnit, SSEF_API_PREFIXES)) {
+    if (isPrefixOf(codeUnit, SSEF_PREFIXES)) {
       return PurenessClassification.SSEF;
-    } else if (isPrefixOf(codeUnit, DSEF_API_PREFIXES)) {
+    } else if (isPrefixOf(codeUnit, DSEF_PREFIXES)) {
       return PurenessClassification.DSEF;
-    } else if (isPrefixOf(codeUnit, NOT_SEF_API_PREFIXES)) {
+    } else if (isPrefixOf(codeUnit, NOT_SEF_PREFIXES)) {
       return PurenessClassification.NOT_SEF;
     } else {
       return PurenessClassification.UNCHECKED;
     }
+  }
+
+  //TODO KSC 11.03.22: Support AspectJ oriented syntax instead of prefixes
+  private boolean isPrefixOf(JavaCodeUnit codeUnit, Set<String> SSEF_API_PREFIXES) {
+    return SSEF_API_PREFIXES.stream().anyMatch(a -> codeUnit.getFullName().startsWith(a));
   }
 }

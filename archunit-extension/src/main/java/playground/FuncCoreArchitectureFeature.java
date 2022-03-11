@@ -7,7 +7,9 @@ import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.EvaluationResult;
 import com.tngtech.archunit.lang.Priority;
 import com.tngtech.archunit.thirdparty.com.google.common.base.Joiner;
+import playground.pureness.PureDataStore;
 import playground.pureness.PurenessArchCondition;
+import playground.pureness.StandardCatalog;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -49,12 +51,10 @@ public final class FuncCoreArchitectureFeature {
         private String[] corePackageIdentifiers = new String[0];
 
         private boolean usePredefinedCatalog = true;
-        private Set<String> deterministicPackages = new LinkedHashSet<>();
-        private Set<String> nonDeterministicPackages = new LinkedHashSet<>();
 
-        private Set<String> nonSideEffectFreePackages = new LinkedHashSet<>();
-        private Set<String> domainSpecificSideEffectFreePackages = new LinkedHashSet<>();
-        private Set<String> strictlySideEffectFreePackages = new LinkedHashSet<>();
+        private final Set<String> nonSideEffectFreePackages = new LinkedHashSet<>();
+        private final Set<String> domainSpecificSideEffectFreePackages = new LinkedHashSet<>();
+        private final Set<String> strictlySideEffectFreePackages = new LinkedHashSet<>();
 
         private final Optional<String> overriddenDescription = Optional.empty();
 
@@ -90,16 +90,6 @@ public final class FuncCoreArchitectureFeature {
             return new PackageClassification(packageIdentifier);
         }
 
-        private FunctionalCoreArchitecture addDeterministicPackage(String packageIdentifier) {
-            deterministicPackages.add(packageIdentifier);
-            return this;
-        }
-
-        private FunctionalCoreArchitecture addNonDeterministicPackage(String packageIdentifier) {
-            nonDeterministicPackages.add(packageIdentifier);
-            return this;
-        }
-
         private FunctionalCoreArchitecture addNonSideEffectFreePackage(String packageIdentifier) {
             nonSideEffectFreePackages.add(packageIdentifier);
             return this;
@@ -123,14 +113,18 @@ public final class FuncCoreArchitectureFeature {
 
             List<String> lines = new ArrayList<>();
             lines.add("Functional Core Architecture with core in " + Arrays.toString(corePackageIdentifiers) + " and shell in " + Arrays.toString(shellPackageIdentifiers));
-            lines.add(usePredefinedCatalog ? " using predefined non deterministic packages" : "using only customized non deterministic packages");
-            if (!nonDeterministicPackages.isEmpty()) {
-                lines.add("with the following additionally defined non deterministic packages");
-                lines.addAll(nonDeterministicPackages);
-            }
+            lines.add(usePredefinedCatalog ? " using predefined catalog" : "using only user declared packages");
             if (!strictlySideEffectFreePackages.isEmpty()) {
                 lines.add("with the following additionally defined strictly side effect free packages");
                 lines.addAll(strictlySideEffectFreePackages);
+            }
+            if (!domainSpecificSideEffectFreePackages.isEmpty()) {
+                lines.add("with the following additionally defined domain specific side effect free packages");
+                lines.addAll(domainSpecificSideEffectFreePackages);
+            }
+            if (!nonSideEffectFreePackages.isEmpty()) {
+                lines.add("with the following additionally defined non side effect free packages");
+                lines.addAll(nonSideEffectFreePackages);
             }
             return Joiner.on(lineSeparator()).join(lines);
         }
@@ -145,9 +139,21 @@ public final class FuncCoreArchitectureFeature {
             EvaluationResult result = new EvaluationResult(this, Priority.MEDIUM);
             result.add(classes().that().resideInAnyPackage(corePackageIdentifiers).should().onlyDependOnClassesThat().resideOutsideOfPackages(shellPackageIdentifiers).evaluate(classes));
             PurenessArchCondition condition = new PurenessArchCondition();
-            //todo parameterize Condition
+            initializeCatalog(condition);
             result.add(classes().that().resideInAnyPackage(corePackageIdentifiers).should(condition).evaluate(classes));
             return result;
+        }
+
+        private void initializeCatalog(PurenessArchCondition condition) {
+            final PureDataStore dataStore = condition.getDataStore();
+            if (usePredefinedCatalog) {
+                dataStore.addPrefixesForNotSideEffectFree(StandardCatalog.getNotSefPrefixes());
+                dataStore.addPrefixesForDomainSpecificSideEffectFree(StandardCatalog.getDsefPrefixes());
+                dataStore.addPrefixesForSideEffectFree(StandardCatalog.getSsefPrefixes());
+            }
+            dataStore.addPrefixesForNotSideEffectFree(nonSideEffectFreePackages);
+            dataStore.addPrefixesForDomainSpecificSideEffectFree(domainSpecificSideEffectFreePackages);
+            dataStore.addPrefixesForSideEffectFree(strictlySideEffectFreePackages);
         }
 
         @Override
@@ -170,16 +176,6 @@ public final class FuncCoreArchitectureFeature {
 
             private PackageClassification(String packageIdentifier) {
                 this.packageIdentifier = packageIdentifier;
-            }
-
-            @PublicAPI(usage = ACCESS)
-            public FunctionalCoreArchitecture isConsideredDeterministic() {
-                return FunctionalCoreArchitecture.this.addDeterministicPackage(packageIdentifier);
-            }
-
-            @PublicAPI(usage = ACCESS)
-            public FunctionalCoreArchitecture isConsideredNonDeterministic() {
-                return FunctionalCoreArchitecture.this.addNonDeterministicPackage(packageIdentifier);
             }
 
             @PublicAPI(usage = ACCESS)

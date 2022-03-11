@@ -17,9 +17,7 @@ public class FuncCoreTest {
             functionalCoreArchitecture()
                     .shellDefinedBy("hamburg.kaischmidt.functionalcoredemo.shell..")
                     .coreDefinedBy("hamburg.kaischmidt.functionalcoredemo.core..")
-                    .wherePredefinedCatalogIsExcluded()
-                    .wherePackage("java.util.concurrent..").isConsideredNonDeterministic()
-                    .wherePackage("java.lang.invoke..").isConsideredNonDeterministic()
-                    .wherePackage("java.util.stream..").isConsideredStrictlySideEffectFree();
+                    .wherePredefinedCatalogIsUsed()
+                    .wherePackage("java.lang.Enum.valueOf").isConsideredStrictlySideEffectFree();
 }
 
