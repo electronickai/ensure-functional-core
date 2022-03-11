@@ -37,6 +37,7 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
 
     @Override
     public void check(JavaClass javaClass, ConditionEvents conditionEvents) {
+        log.info("checking java class: " + javaClass.getFullName());
         javaClass.getCodeUnits().forEach(javaConstructor -> collectAndPreClassify(javaConstructor, conditionEvents));
     }
 
@@ -118,6 +119,7 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
         }
 
         //If there are methods that are classified already, the current method may be derived from that
+        log.debug("checking method calls of " + codeUnit + " during preclassification");
         dataStore.classifyUnsure(codeUnit);
         classifyBasedOnMethodCalls(codeUnit, conditionEvents);
     }
@@ -172,6 +174,7 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
         }
 
         for (JavaCodeUnit unsureCodeUnit : dataStore.getAllMethodsOfClassification(PurenessClassification.UNSURE)) {
+            log.debug("checking method calls of " + unsureCodeUnit + " during iteration");
             hasChanged |= classifyBasedOnMethodCalls(unsureCodeUnit, conditionEvents);
         }
 
@@ -186,6 +189,7 @@ public class PurenessArchCondition extends ArchCondition<JavaClass> {
 
         for (JavaMethodCall call : callsToCheck) {
             Set<JavaMethod> resolvedTarget = call.getTarget().resolve();
+            log.debug("checking call " + call);
             if (dataStore.checkContainNotSEF(resolvedTarget) && isVisibleToOuterScope(call, codeUnit)) {
                 logViolation(conditionEvents, codeUnit.getOwner(), codeUnit.getFullName() + "  calls not SEF method ( one of " + call.getTarget() + ")");
                 dataStore.classifyNotSEF(codeUnit);
