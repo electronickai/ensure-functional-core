@@ -43,3 +43,8 @@ dependencies {
     testImplementation 'org.assertj:assertj-core:3.22.0'
     testImplementation project(':archunit-extension')
 }
+
+test {
+    maxHeapSize = "5g"
+    jvmArgs "-XX:MaxMetaspaceSize=1g"
+}
