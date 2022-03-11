@@ -1,5 +1,7 @@
 package hamburg.kaischmidt.functionalcoredemo.core.domain;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
@@ -25,7 +27,9 @@ public final class Agenda {
     }
 
     public List<Talk> getTalksSortedByName() {
-        return talks.stream().sorted().collect(Collectors.toUnmodifiableList());
+        List<Talk> sortedTalks = new ArrayList<>(talks);
+        Collections.sort(sortedTalks);
+        return sortedTalks;
     }
 
     public String getLastOperationMessage() {
